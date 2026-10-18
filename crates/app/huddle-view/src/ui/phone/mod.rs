@@ -15,6 +15,7 @@
 //! reaches into the desktop's `ui/` files. One file per screen:
 //! - `check.rs`: the device check;
 //! - `incoming.rs`: a call ringing you;
+//! - `door.rs`: a call you were not asked into, whose link you opened;
 //! - `room.rs`: the room;
 //! - `parts.rs`: what the check and the room both draw.
 //!
@@ -30,6 +31,7 @@ use crate::words;
 use crate::{Huddle, Row, Screen, Which};
 
 mod check;
+mod door;
 mod incoming;
 mod parts;
 mod room;
@@ -51,13 +53,18 @@ pub(crate) fn render(view: &Huddle, cx: &mut Context<Huddle>) -> AnyElement {
     // what is drawn, decided once: the screen and the sheet over it
     let sheet = supported.then(|| sheet(view, cx, ladder, &theme)).flatten();
     let ring = view.rings().first().map(|ring| (*ring).clone());
-    let screen = match (supported, view.screen, ring) {
+    let screen = match (supported, view.screen, ring, &view.door) {
         (false, ..) => unsupported(ladder, &theme).into_any_element(),
-        (true, Screen::Check, Some(ring)) => {
+        (true, Screen::Check, Some(ring), _) => {
             incoming::screen(view, &ring, cx, ladder, &theme).into_any_element()
         }
-        (true, Screen::Check, None) => check::screen(view, cx, ladder, &theme).into_any_element(),
-        (true, Screen::Room, _) => room::screen(view, cx, ladder, &theme).into_any_element(),
+        (true, Screen::Check, None, Some(door)) => {
+            door::screen(view, door, cx, ladder, &theme).into_any_element()
+        }
+        (true, Screen::Check, None, None) => {
+            check::screen(view, cx, ladder, &theme).into_any_element()
+        }
+        (true, Screen::Room, ..) => room::screen(view, cx, ladder, &theme).into_any_element(),
     };
     div()
         .id("huddle")

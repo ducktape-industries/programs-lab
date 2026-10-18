@@ -332,3 +332,128 @@ fn a_ring_names_its_caller_and_a_group() {
     );
     assert_eq!((rung.kind, rung.until), (NoticeKind::Call, 45));
 }
+
+/// A knock at the door of a call I am in is a plain notice, one per
+/// knocker, under the knock's own tag, linking the call, until the knock
+/// runs out; it is taken down whatever answers it: Let in, Turn away, the
+/// knocker's withdrawal or its time running out, which the check finds.
+#[test]
+fn a_knock_at_my_calls_door_is_a_notice_until_answered() {
+    for answer in ["admit", "turn away", "withdraw", "time"] {
+        let world = World::default();
+        world.now.set(1_000);
+        let mut notifier = world.notifier();
+        world.start(&mut notifier);
+        world.block(&mut notifier, ADA, start(vec![BO]));
+        world.block(
+            &mut notifier,
+            BO,
+            Op::Join {
+                call: "call-1".into(),
+            },
+        );
+        assert_eq!(seen(&notifier), ["call/call-1"], "{answer}: my ring went");
+        world.block(
+            &mut notifier,
+            CY,
+            Op::Knock {
+                call: "call-1".into(),
+            },
+        );
+        let posted = posts(&notifier);
+        assert_eq!(posted.len(), 2, "{answer}: {posted:?}");
+        assert_eq!(
+            posted[1],
+            Notification {
+                title: "account 9 is asking to join".into(),
+                body: String::new(),
+                tag: "knock/call-1/9".into(),
+                link: "duck://testnet-0a1b2c3d/huddle/call/call-1".into(),
+                kind: NoticeKind::Notice,
+                until: 1_000 + huddle::KNOCK_SECONDS,
+                end_link: String::new(),
+            }
+        );
+        match answer {
+            "admit" => world.block(
+                &mut notifier,
+                BO,
+                Op::Admit {
+                    call: "call-1".into(),
+                    account: CY,
+                },
+            ),
+            "turn away" => world.block(
+                &mut notifier,
+                ADA,
+                Op::TurnAway {
+                    call: "call-1".into(),
+                    account: CY,
+                },
+            ),
+            "withdraw" => world.block(
+                &mut notifier,
+                CY,
+                Op::Leave {
+                    call: "call-1".into(),
+                },
+            ),
+            _ => {
+                world.tick(&mut notifier, 1_000 + huddle::KNOCK_SECONDS - 1);
+                assert_eq!(seen(&notifier).len(), 1, "{answer}: still waiting");
+                world.tick(&mut notifier, 1_000 + huddle::KNOCK_SECONDS);
+            }
+        }
+        assert_eq!(
+            seen(&notifier),
+            ["call/call-1", "knock/call-1/9"],
+            "{answer}"
+        );
+        assert_eq!(posts(&notifier).len(), 2, "{answer}: nothing new");
+    }
+}
+
+/// The knocker hears nothing from the centre: not of their knock, and not
+/// a ring when they are let in (they asked). Nor does one rung into the
+/// call but not in it hear the knock.
+#[test]
+fn the_knocker_and_one_not_in_the_call_hear_nothing() {
+    let world = World::default();
+    world.now.set(1_000);
+    let mut knocker = world.notifier();
+    knocker.start();
+    knocker.host().stream::<HostSession>().send(Session {
+        account: Some(CY),
+        ..session()
+    });
+    knocker.run_until_parked();
+    let mut rung = world.notifier();
+    world.start(&mut rung);
+    world.block(&mut knocker, ADA, start(vec![BO]));
+    world.block(
+        &mut knocker,
+        CY,
+        Op::Knock {
+            call: "call-1".into(),
+        },
+    );
+    assert!(posts(&knocker).is_empty(), "{:?}", posts(&knocker));
+    world.block(
+        &mut knocker,
+        ADA,
+        Op::Admit {
+            call: "call-1".into(),
+            account: CY,
+        },
+    );
+    assert!(posts(&knocker).is_empty(), "let in, not rung");
+    // Bo, rung and not in: the ring alone
+    rung.host().stream::<Changes<Huddle>>().send(Some(Change {
+        height: 3,
+        keys: vec![huddle::state::CALLS.key(&"call-1".to_owned())],
+    }));
+    rung.run_until_parked();
+    let posted = posts(&rung);
+    assert_eq!(posted.len(), 1, "{posted:?}");
+    assert_eq!(posted[0].kind, NoticeKind::Call);
+}

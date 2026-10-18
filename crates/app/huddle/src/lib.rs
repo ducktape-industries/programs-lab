@@ -9,7 +9,9 @@
 //!
 //! - `lib.rs` (here): the types on the wire, all borsh, a call's clock
 //!   ([`Call::rings`], [`Call::over`]), and [`describe()`]
-//! - `state.rs`: the tables
+//! - `state.rs`: the tables, among them the door's: who knocks at a call
+//!   (an account with its link that was not asked in), and how long a call
+//!   waits for knocks
 //! - `program.rs`: [`Huddle`], the program (its name and types, which a
 //!   view names it by) and its dispatch: one match over every op and one
 //!   over every query
@@ -33,6 +35,13 @@ pub const PROGRAM: &str = "huddle";
 
 /// How long a person is rung, in seconds, from when they were invited.
 pub const RING_SECONDS: u64 = 45;
+
+/// How long a knock waits for an answer, in seconds: a minute.
+pub const KNOCK_SECONDS: u64 = 60;
+
+/// How long a call with fewer than two in it waits for knocks, in seconds,
+/// from its start and from its last knock: ten minutes.
+pub const WAIT_SECONDS: u64 = 600;
 
 /// The most people a call holds, its caller among them.
 pub const MAX_PEOPLE: usize = 16;
@@ -123,17 +132,81 @@ impl Call {
     }
 
     /// Whether the call is over at `now`: ended, or fewer than two people
-    /// in it with no one being rung. No one answered, or everyone else
-    /// left: the program sees no track go down, so a call abandoned
-    /// without a `Leave` is over by this rule, not by a write.
-    pub fn over(&self, now: u64) -> bool {
+    /// in it with no one being rung, no one knocking and its wait for
+    /// knocks ([`WAIT_SECONDS`] from its start and from its last knock,
+    /// which `waits_until` ends; `None` for a call started before there
+    /// were knocks) out. No one answered, or everyone else left: the
+    /// program sees no track go down, so a call abandoned without a `Leave`
+    /// is over by this rule, not by a write.
+    pub fn over(&self, knocks: &[Knocker], waits_until: Option<u64>, now: u64) -> bool {
         self.ended.is_some()
             || (self.joined.len() < 2
                 && !self
                     .invited
                     .iter()
-                    .any(|invitee| self.rings(invitee.account, now)))
+                    .any(|invitee| self.rings(invitee.account, now))
+                && !knocks.iter().any(|knocker| knocker.waits(now))
+                && waits_until.is_none_or(|until| now >= until))
     }
+}
+
+/// One knock at a call's door, as `knock/<call>/<account>` keeps it: when,
+/// and what was answered, until the knocker knocks again, withdraws or
+/// joins.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct Knock {
+    pub at: u64,
+    pub answer: Option<Answer>,
+}
+
+/// What someone in the call answered a knock.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub enum Answer {
+    Admitted,
+    TurnedAway,
+}
+
+/// A knock as a list names it: whose, and the knock.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct Knocker {
+    pub account: u64,
+    pub knock: Knock,
+}
+
+/// Where a knock stands at the chain's time, as a list says it so no
+/// reader needs the chain's clock.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub enum Standing {
+    /// Unanswered, inside its [`KNOCK_SECONDS`].
+    Waiting,
+    /// Unanswered past them: the knocker may knock again.
+    RanOut,
+    Admitted,
+    TurnedAway,
+}
+
+impl Knocker {
+    /// Whether the knock waits for an answer at `now`.
+    pub fn waits(&self, now: u64) -> bool {
+        self.knock.answer.is_none() && now < self.knock.at + KNOCK_SECONDS
+    }
+
+    pub fn standing(&self, now: u64) -> Standing {
+        match self.knock.answer {
+            Some(Answer::Admitted) => Standing::Admitted,
+            Some(Answer::TurnedAway) => Standing::TurnedAway,
+            None if self.waits(now) => Standing::Waiting,
+            None => Standing::RanOut,
+        }
+    }
+}
+
+/// A knock as a reader gets it: whose, and where it stands at the chain's
+/// time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct Knocking {
+    pub account: u64,
+    pub standing: Standing,
 }
 
 /// A call as a list names it: its id, and the call.
@@ -147,7 +220,8 @@ pub struct Listed {
 pub enum Op {
     /// Starts call `call` (an id the caller mints, unused before) with the
     /// sender in it, ringing each of `invited` from now. Each of them and
-    /// the sender gets their row in the room.
+    /// the sender gets their row in the room. With no one invited the call
+    /// waits for knocks ([`WAIT_SECONDS`]): its caller shares its link.
     Start { call: String, invited: Vec<u64> },
     /// Asks `accounts` into a call the sender is in, each rung from now;
     /// one asked before rings again, one who declined is asked again, one
@@ -159,12 +233,23 @@ pub enum Op {
     /// tracks hear.
     Join { call: String },
     /// The sender is out of the call, their row taken back; the last one
-    /// out ends it, and every row goes.
+    /// out ends it, and every row goes. A sender who was knocking, not in
+    /// it, withdraws their knock; let in already, they decline.
     Leave { call: String },
     /// The sender, asked in, says no: their ring stops, their row goes.
     Decline { call: String },
     /// The caller ends the call for everyone: every row goes.
     End { call: String },
+    /// The sender, not asked into a call that is not over, asks to join
+    /// it: their knock waits [`KNOCK_SECONDS`] for someone in the call to
+    /// answer. Knocked again, it waits anew.
+    Knock { call: String },
+    /// Someone in the call lets `account`, whose knock waits, in: they are
+    /// asked in as an invite asks, their row written, but not rung (they
+    /// asked).
+    Admit { call: String, account: u64 },
+    /// Someone in the call turns `account`'s waiting knock away.
+    TurnAway { call: String, account: u64 },
 }
 
 /// A read. Each variant names the reply that answers it, so a view asks it
@@ -180,20 +265,42 @@ pub enum Query {
     /// The calls `account` is in, or asked into and has not declined,
     /// that are not over at the chain's time; newest first.
     #[ask(Reply::Calls(Vec<Listed>))]
-    #[reads(state::CALLS, state::MINE)]
+    #[reads(state::CALLS, state::MINE, state::KNOCKS, state::WAITS)]
     Mine { account: u64 },
     /// The calls ringing `account` at the chain's time ([`Call::rings`]);
     /// newest first. A ring that ran out is not here, so a reader catching
-    /// up after a while away never rings a call that is over.
+    /// up after a while away never rings a call that is over. Nor is a call
+    /// that admitted `account`'s knock: they asked, so nothing rings them.
     #[ask(Reply::Calls(Vec<Listed>))]
-    #[reads(state::CALLS, state::MINE)]
+    #[reads(state::CALLS, state::MINE, state::KNOCKS)]
     Ringing { account: u64 },
+    /// Everyone who knocked at call `call` and has not knocked again,
+    /// withdrawn or joined since, each where their knock stands at the
+    /// chain's time; `None` for no such call.
+    #[ask(Reply::Knocks(Option<Vec<Knocking>>))]
+    #[reads(state::CALLS, state::KNOCKS)]
+    Knocks { call: String },
+    /// The knocks waiting at the doors of the calls `account` is in, each
+    /// call with its knockers; newest call first.
+    #[ask(Reply::Doors(Vec<Door>))]
+    #[reads(state::CALLS, state::MINE, state::KNOCKS)]
+    Doors { account: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum Reply {
     Call(Option<Call>),
     Calls(Vec<Listed>),
+    Knocks(Option<Vec<Knocking>>),
+    Doors(Vec<Door>),
+}
+
+/// A call's door as someone in it reads it: the call, and the knocks
+/// waiting at it (each inside its [`KNOCK_SECONDS`]).
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct Door {
+    pub call: String,
+    pub waiting: Vec<Knocker>,
 }
 
 /// An op as a person reads it: a title and its fields. The source of the
@@ -236,6 +343,24 @@ pub fn describe(op: &Op) -> describe::Description {
             "End a call for everyone".to_owned(),
             vec![field("call", Value::text(call))],
         ),
+        Op::Knock { call } => (
+            "Ask to join a call".to_owned(),
+            vec![field("call", Value::text(call))],
+        ),
+        Op::Admit { call, account } => (
+            "Let someone into a call".to_owned(),
+            vec![
+                field("call", Value::text(call)),
+                field("letting in", Value::Account(*account)),
+            ],
+        ),
+        Op::TurnAway { call, account } => (
+            "Turn someone away from a call".to_owned(),
+            vec![
+                field("call", Value::text(call)),
+                field("turning away", Value::Account(*account)),
+            ],
+        ),
     };
     describe::Description { title, fields }
 }
@@ -248,6 +373,8 @@ describe::export!(Op, describe);
 fn op_variants_only_append() {
     assert_eq!(
         describe::variants::<Op>(),
-        ["Start", "Invite", "Join", "Leave", "Decline", "End"]
+        [
+            "Start", "Invite", "Join", "Leave", "Decline", "End", "Knock", "Admit", "TurnAway"
+        ]
     );
 }

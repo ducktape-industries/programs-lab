@@ -1,7 +1,8 @@
 //! The desktop's call (`call.rs` is its model, `people.rs` what both trees
 //! draw of the people): the grid the stage lays them in, the network row,
-//! your thumbnail, the bar's Invite, and the rings on the check. `mod.rs`
-//! places them in the room and on the check.
+//! your thumbnail, the bar's Invite with Start a call or Copy link beside
+//! it, the knocks at the door over the stage, and the rings on the check.
+//! `mod.rs` places them in the room and on the check.
 use view::prelude::*;
 use view::{Div, FontWeight, Stateful};
 
@@ -12,6 +13,9 @@ use crate::words;
 use crate::{Huddle, Which};
 
 const INVITE: &str = "user-plus";
+const START: &str = "phone";
+const LINK: &str = "link";
+const COPIED: &str = "check";
 
 /// The grid `n` tiles take on a stage `w` by `h`: columns and rows.
 pub(super) fn grid(n: usize, w: f32, h: f32) -> (usize, usize) {
@@ -113,6 +117,128 @@ pub(super) fn invite(view: &Huddle, cx: &mut Context<Huddle>, theme: &Theme) -> 
         .child(words::INVITE)
         .child(design::icon(CARET, px(12.)).text_color(theme.muted));
     anchor(Which::Invite, id, button, cx)
+}
+
+/// Beside Invite: with no call, Start a call (one with no one rung, whose
+/// link brings people to its door); in a call, Copy link, which says the
+/// link was copied for a while.
+pub(super) fn link_or_start(
+    view: &Huddle,
+    cx: &mut Context<Huddle>,
+    theme: &Theme,
+) -> Stateful<Div> {
+    let theme = *theme;
+    let (id, icon, label) = match (view.call.is_some(), view.just_copied()) {
+        (false, _) => ("huddle-start", START, words::START_CALL),
+        (true, false) => ("huddle-copy-link", LINK, words::COPY_LINK),
+        (true, true) => ("huddle-copy-link", COPIED, words::LINK_COPIED),
+    };
+    div()
+        .id(id)
+        .flex_none()
+        .h(px(32.))
+        .px(design::space::MD)
+        .flex()
+        .items_center()
+        .gap(design::space::XS)
+        .border_1()
+        .border_color(theme.border_strong)
+        .text_color(theme.foreground)
+        .cursor_pointer()
+        .hover(move |style| style.bg(theme.surface))
+        .role(Role::Button)
+        .focusable()
+        .on_click(cx.listener(
+            |view: &mut Huddle, _: &ClickEvent, _, cx| match view.call.is_some() {
+                true => view.copy_link(cx),
+                false => view.start_alone(cx),
+            },
+        ))
+        .child(design::icon(icon, px(14.)))
+        .child(div().id("huddle-link-word").child(label))
+}
+
+/// The knocks at the door, over the stage's top: each one's face and
+/// name, Let in and Turn away.
+pub(super) fn knocks(
+    view: &Huddle,
+    cx: &mut Context<Huddle>,
+    theme: &Theme,
+) -> Option<Stateful<Div>> {
+    let knocks = &view.call.as_ref()?.knocks;
+    if knocks.is_empty() {
+        return None;
+    }
+    let cards = knocks.iter().map(|who| {
+        let who = *who;
+        let name = view.name(who);
+        let admit =
+            cx.listener(move |view: &mut Huddle, _: &ClickEvent, _, cx| view.admit(who, cx));
+        let turn_away =
+            cx.listener(move |view: &mut Huddle, _: &ClickEvent, _, cx| view.turn_away(who, cx));
+        div()
+            .id(SharedString::from(format!("huddle-knock-{who}")))
+            .flex()
+            .items_center()
+            .gap(design::space::SM)
+            .p(design::space::SM)
+            .border_1()
+            .border_color(theme.border_strong)
+            .bg(theme.background)
+            .shadow_md()
+            .role(Role::Alert)
+            .aria_live(view::accesskit::Live::Polite)
+            .child(design::avatar(&name, px(28.), theme))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(0.))
+                    .text_size(design::text::SECONDARY)
+                    .font_weight(FontWeight::MEDIUM)
+                    .truncate()
+                    .child(words::asking_to_join(&name)),
+            )
+            .child(
+                design::button(
+                    format!("huddle-admit-{who}"),
+                    words::LET_IN,
+                    &design::POINTER,
+                    theme,
+                    admit,
+                )
+                .kind(design::Kind::Primary),
+            )
+            .child(
+                design::button(
+                    format!("huddle-turn-away-{who}"),
+                    words::TURN_AWAY,
+                    &design::POINTER,
+                    theme,
+                    turn_away,
+                )
+                .kind(design::Kind::Outline),
+            )
+    });
+    // one column, centred, as wide as its widest card: every card across
+    // it, so the names and the answers line up
+    Some(
+        div()
+            .id("huddle-knocks")
+            .absolute()
+            .top(design::space::SM)
+            .left_0()
+            .right_0()
+            .flex()
+            .justify_center()
+            .child(
+                div()
+                    .min_w(px(0.))
+                    .flex()
+                    .flex_col()
+                    .gap(design::space::XS)
+                    .children(cards),
+            ),
+    )
 }
 
 /// The rings over the check's settings, newest first, each with Answer

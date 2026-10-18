@@ -5,7 +5,10 @@
 use ::program::live::Grant;
 use ::program::{Env, Error, MockHost, Program, QueryCtx, code};
 
-use crate::{Call, Huddle, Listed, MAX_PEOPLE, Op, PROGRAM, Query, RING_SECONDS, Reply, seat};
+use crate::{
+    Call, Door, Huddle, KNOCK_SECONDS, Knock, Knocker, Knocking, Listed, MAX_PEOPLE, Op, PROGRAM,
+    Query, RING_SECONDS, Reply, Standing, WAIT_SECONDS, seat,
+};
 
 const ADA: u64 = 1;
 const BO: u64 = 2;
@@ -83,6 +86,53 @@ impl Line {
             panic!("a call answers its call");
         };
         call
+    }
+
+    /// Whether the call is over at the chain's time, as the program reads
+    /// it: not among its caller's calls.
+    fn over(&self) -> bool {
+        let call = self.call();
+        !self.mine(call.caller).contains(&CALL.to_owned())
+    }
+
+    fn knocks(&self) -> Vec<Knocking> {
+        let Ok(Reply::Knocks(Some(knocks))) =
+            Huddle::query(&self.reads(), Query::Knocks { call: CALL.into() })
+        else {
+            panic!("a call answers its knocks");
+        };
+        knocks
+    }
+
+    fn doors(&self, account: u64) -> Vec<Door> {
+        let Ok(Reply::Doors(doors)) = Huddle::query(&self.reads(), Query::Doors { account }) else {
+            panic!("doors answer doors");
+        };
+        doors
+    }
+
+    fn knock(&mut self, who: u64) -> Result<(), Error> {
+        self.send(who, Op::Knock { call: CALL.into() })
+    }
+
+    fn admit(&mut self, who: u64, account: u64) -> Result<(), Error> {
+        self.send(
+            who,
+            Op::Admit {
+                call: CALL.into(),
+                account,
+            },
+        )
+    }
+
+    fn turn_away(&mut self, who: u64, account: u64) -> Result<(), Error> {
+        self.send(
+            who,
+            Op::TurnAway {
+                call: CALL.into(),
+                account,
+            },
+        )
     }
 
     fn calls(&self, query: Query) -> Vec<String> {
@@ -168,11 +218,6 @@ fn a_start_that_cannot_be_a_call_is_refused() {
             "{id:?}"
         );
     }
-    assert_eq!(line.refused(ADA, start(CALL, vec![])), code::INVALID_INPUT);
-    assert_eq!(
-        line.refused(ADA, start(CALL, vec![ADA])),
-        code::INVALID_INPUT
-    );
     let crowd: Vec<u64> = (10..10 + MAX_PEOPLE as u64).collect();
     assert_eq!(line.refused(ADA, start(CALL, crowd)), code::CAPACITY);
     assert_eq!(line.state(), empty);
@@ -394,12 +439,19 @@ fn a_later_invitee_rings_on_their_own_clock() {
     );
 }
 
+/// A call no one answered waits for knocks past its rings, then is over:
+/// its caller alone, no one rung or knocking, its wait out. It still
+/// closes.
 #[test]
-fn a_call_no_one_answered_is_over_once_the_rings_run_out_and_still_closes() {
+fn a_call_no_one_answered_is_over_once_its_wait_runs_out_and_still_closes() {
     let mut line = Line::default();
     line.start(ADA, &[BO]);
     line.now = RING_SECONDS;
-    assert!(line.call().over(line.now));
+    assert!(!line.over(), "rung out, but waiting for knocks");
+    line.now = WAIT_SECONDS - 1;
+    assert!(!line.over());
+    line.now = WAIT_SECONDS;
+    assert!(line.over());
     assert_eq!(line.mine(ADA), Vec::<String>::new());
     assert_eq!(
         line.refused(BO, Op::Join { call: CALL.into() }),
@@ -407,29 +459,353 @@ fn a_call_no_one_answered_is_over_once_the_rings_run_out_and_still_closes() {
     );
     // the caller's view leaves: the rows go
     line.ok(ADA, Op::Leave { call: CALL.into() });
-    assert_eq!(line.call().ended, Some(RING_SECONDS));
+    assert_eq!(line.call().ended, Some(WAIT_SECONDS));
     assert_eq!(line.row(CALL, Some(BO)), None);
 }
 
-/// The caller left alone in the room by a decline (the call over: no one
-/// else in it, no one rung) asks someone in again, and it rings; once the
-/// call has ended, it does not.
+/// A call from before there were knocks (no wait row) is over as it was:
+/// once its rings run out.
+#[test]
+fn an_old_shape_call_is_over_as_before() {
+    let mut line = Line::default();
+    line.start(ADA, &[BO]);
+    // as garage holds it: the call row alone
+    let ctx = line.store.exec(line.env());
+    ctx.delete(crate::state::WAITS.key(&CALL.to_owned()));
+    assert!(!line.over());
+    line.now = RING_SECONDS;
+    assert!(line.over(), "rung out, no wait");
+    assert_eq!(
+        line.refused(DEE, Op::Knock { call: CALL.into() }),
+        code::WRONG_STATE
+    );
+    // its caller's Invite still rings again
+    line.ok(
+        ADA,
+        Op::Invite {
+            call: CALL.into(),
+            accounts: vec![CY],
+        },
+    );
+    assert!(!line.over());
+}
+
+/// The caller left alone in the room by a decline asks someone in again,
+/// and it rings; once the call has ended, it does not.
 #[test]
 fn the_caller_alone_after_a_decline_can_invite() {
     let mut line = Line::default();
     line.start(ADA, &[BO]);
     line.ok(BO, Op::Decline { call: CALL.into() });
-    assert!(line.call().over(line.now));
+    line.now = WAIT_SECONDS;
+    assert!(line.over());
     let invite = |accounts: Vec<u64>| Op::Invite {
         call: CALL.into(),
         accounts,
     };
     line.ok(ADA, invite(vec![CY]));
-    assert!(!line.call().over(line.now));
+    assert!(!line.over());
     assert_eq!(line.ringing(CY), [CALL]);
     assert_eq!(line.row(CALL, Some(CY)), Some(seat()));
     line.ok(ADA, Op::End { call: CALL.into() });
     assert_eq!(line.refused(ADA, invite(vec![DEE])), code::WRONG_STATE);
+}
+
+// ---------- the door ----------
+
+/// A call starts with no one rung: its caller alone, waiting for knocks
+/// ten minutes from its start, and ten minutes from each knock after.
+#[test]
+fn a_call_starts_alone_and_waits_for_knocks() {
+    let mut line = Line {
+        now: 100,
+        ..Line::default()
+    };
+    line.start(ADA, &[]);
+    let call = line.call();
+    assert_eq!(
+        (call.joined.as_slice(), call.invited.len()),
+        (&[ADA][..], 0)
+    );
+    assert_eq!(line.row(CALL, Some(ADA)), Some(seat()));
+    assert_eq!(line.row(CALL, None), None, "no `*` row");
+    assert_eq!(line.mine(ADA), [CALL]);
+    line.now = 100 + WAIT_SECONDS - 1;
+    assert!(!line.over());
+    // a knock at the last second keeps it open ten minutes more
+    line.knock(BO).expect("a knock");
+    line.now = 100 + WAIT_SECONDS;
+    assert!(!line.over(), "someone is knocking");
+    line.now = 100 + WAIT_SECONDS + KNOCK_SECONDS;
+    assert!(!line.over(), "the knock ran out, the wait from it runs");
+    line.now = 100 + WAIT_SECONDS - 1 + WAIT_SECONDS;
+    assert!(line.over());
+    assert_eq!(
+        line.refused(CY, Op::Knock { call: CALL.into() }),
+        code::WRONG_STATE,
+        "over: no more knocks"
+    );
+    // abandoned, it still closes by its caller's Leave
+    line.ok(ADA, Op::Leave { call: CALL.into() });
+    assert!(line.call().ended.is_some());
+    assert_eq!(
+        line.knocks(),
+        Vec::<Knocking>::new(),
+        "the door's rows went"
+    );
+}
+
+/// A knock waits a minute for an answer, then runs out; knocked again, it
+/// waits anew. One who was asked in does not knock, nor does anyone at a
+/// call that has ended or never was.
+#[test]
+fn a_knock_waits_a_minute_and_can_be_knocked_again() {
+    let mut line = Line {
+        now: 1_000,
+        ..Line::default()
+    };
+    line.start(ADA, &[BO]);
+    let empty = line.state();
+    assert_eq!(
+        line.refused(BO, Op::Knock { call: CALL.into() }),
+        code::WRONG_STATE
+    );
+    assert_eq!(
+        line.refused(ADA, Op::Knock { call: CALL.into() }),
+        code::WRONG_STATE
+    );
+    assert_eq!(
+        line.refused(
+            CY,
+            Op::Knock {
+                call: "nowhere".into()
+            }
+        ),
+        code::NOT_FOUND
+    );
+    assert_eq!(line.state(), empty);
+    line.knock(CY).expect("a knock");
+    let waiting = |account| Knocking {
+        account,
+        standing: Standing::Waiting,
+    };
+    assert_eq!(line.knocks(), [waiting(CY)]);
+    assert_eq!(
+        line.doors(ADA),
+        [Door {
+            call: CALL.into(),
+            waiting: vec![Knocker {
+                account: CY,
+                knock: Knock {
+                    at: 1_000,
+                    answer: None,
+                },
+            }],
+        }]
+    );
+    assert_eq!(line.doors(BO), Vec::<Door>::new(), "rung, not in it");
+    assert_eq!(line.row(CALL, Some(CY)), None, "no row for knocking");
+    assert_eq!(line.mine(CY), Vec::<String>::new());
+    line.now = 1_000 + KNOCK_SECONDS - 1;
+    assert_eq!(line.knocks(), [waiting(CY)]);
+    line.now = 1_000 + KNOCK_SECONDS;
+    assert_eq!(
+        line.knocks(),
+        [Knocking {
+            account: CY,
+            standing: Standing::RanOut,
+        }]
+    );
+    assert_eq!(line.doors(ADA), Vec::<Door>::new());
+    // again, at once: no cooldown
+    line.knock(CY).expect("knocked again");
+    assert_eq!(line.knocks(), [waiting(CY)]);
+    line.knock(CY).expect("and again");
+    assert_eq!(line.knocks().len(), 1, "one knock per knocker");
+    line.ok(ADA, Op::End { call: CALL.into() });
+    assert_eq!(
+        line.refused(CY, Op::Knock { call: CALL.into() }),
+        code::WRONG_STATE
+    );
+    assert_eq!(
+        line.knocks(),
+        Vec::<Knocking>::new(),
+        "the end took the door's rows"
+    );
+}
+
+/// A knocker withdraws by Leave: their knock goes and nothing else moves.
+#[test]
+fn a_knocker_withdraws_by_leave() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    assert_eq!(
+        line.refused(CY, Op::Leave { call: CALL.into() }),
+        code::WRONG_STATE,
+        "nothing to withdraw"
+    );
+    line.knock(CY).expect("a knock");
+    let knocked = line.state();
+    line.ok(CY, Op::Leave { call: CALL.into() });
+    assert_eq!(line.knocks(), Vec::<Knocking>::new());
+    assert_eq!(line.call().ended, None, "the caller is still in it");
+    assert_ne!(line.state(), knocked);
+    assert_eq!(line.row(CALL, Some(ADA)), Some(seat()));
+}
+
+/// Admit asks the knocker in as an invite does: their row, the call among
+/// theirs, their Join at once; but no ring. Only someone in the call
+/// admits, only a knock that waits is admitted, and the call's room is
+/// not over-filled.
+#[test]
+fn admit_lets_the_knocker_join_without_a_ring() {
+    let mut line = Line::default();
+    line.start(ADA, &[BO]);
+    line.knock(CY).expect("a knock");
+    line.knock(DEE).expect("another");
+    for who in [BO, DEE] {
+        assert_eq!(
+            line.admit(who, CY).expect_err("refused").code,
+            code::UNAUTHORIZED,
+            "{who} is not in the call"
+        );
+    }
+    assert_eq!(
+        line.admit(ADA, 99).expect_err("refused").code,
+        code::NOT_FOUND
+    );
+    line.admit(ADA, CY).expect("admitted");
+    assert_eq!(
+        line.knocks(),
+        [
+            Knocking {
+                account: CY,
+                standing: Standing::Admitted,
+            },
+            Knocking {
+                account: DEE,
+                standing: Standing::Waiting,
+            },
+        ]
+    );
+    assert_eq!(line.row(CALL, Some(CY)), Some(seat()));
+    assert_eq!(line.mine(CY), [CALL]);
+    assert!(line.call().asked(CY));
+    assert_eq!(
+        line.ringing(CY),
+        Vec::<String>::new(),
+        "they asked: no ring"
+    );
+    assert_eq!(line.ringing(BO), [CALL], "Bo's ring goes on");
+    assert_eq!(
+        line.admit(ADA, CY).expect_err("answered already").code,
+        code::WRONG_STATE
+    );
+    line.ok(CY, Op::Join { call: CALL.into() });
+    assert_eq!(line.call().joined, [ADA, CY]);
+    assert_eq!(line.knocks().len(), 1, "in: the knock has done its work");
+    // once in, Cy admits too
+    line.admit(CY, DEE).expect("admitted by one let in");
+    assert_eq!(line.row(CALL, Some(DEE)), Some(seat()));
+}
+
+/// A knock that ran out asks no more: no one lets its knocker in or turns
+/// them away until they knock again.
+#[test]
+fn a_knock_that_ran_out_is_not_answered() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    line.knock(CY).expect("a knock");
+    line.now = KNOCK_SECONDS;
+    let ran_out = line.state();
+    assert_eq!(
+        line.admit(ADA, CY).expect_err("ran out").code,
+        code::WRONG_STATE
+    );
+    assert_eq!(
+        line.turn_away(ADA, CY).expect_err("ran out").code,
+        code::WRONG_STATE
+    );
+    assert_eq!(line.state(), ran_out);
+    line.knock(CY).expect("knocked again");
+    line.admit(ADA, CY).expect("admitted");
+}
+
+/// One let in who withdraws before they join says no, as a Decline does:
+/// their row goes, and nothing rings them.
+#[test]
+fn a_knocker_let_in_who_withdraws_declines() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    line.knock(CY).expect("a knock");
+    line.admit(ADA, CY).expect("admitted");
+    line.ok(CY, Op::Leave { call: CALL.into() });
+    assert_eq!(line.ringing(CY), Vec::<String>::new(), "no ring");
+    assert_eq!(line.row(CALL, Some(CY)), None);
+    assert_eq!(line.mine(CY), Vec::<String>::new());
+    assert_eq!(line.call().declined, [CY]);
+    assert_eq!(line.knocks(), Vec::<Knocking>::new());
+    // asked in still: their link joins
+    line.ok(CY, Op::Join { call: CALL.into() });
+    assert_eq!(line.call().joined, [ADA, CY]);
+}
+
+/// Turned away, the knock stays answered until the knocker knocks again
+/// or withdraws; the call is unmoved.
+#[test]
+fn turn_away_answers_the_knock_and_nothing_else() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    line.knock(CY).expect("a knock");
+    assert_eq!(
+        line.turn_away(BO, CY).expect_err("refused").code,
+        code::UNAUTHORIZED
+    );
+    assert_eq!(
+        line.turn_away(ADA, DEE).expect_err("refused").code,
+        code::NOT_FOUND
+    );
+    let call = line.call();
+    line.turn_away(ADA, CY).expect("turned away");
+    assert_eq!(
+        line.knocks(),
+        [Knocking {
+            account: CY,
+            standing: Standing::TurnedAway,
+        }]
+    );
+    assert_eq!(line.doors(ADA), Vec::<Door>::new());
+    assert_eq!(line.call(), call);
+    assert_eq!(line.row(CALL, Some(CY)), None);
+    assert_eq!(
+        line.turn_away(ADA, CY).expect_err("answered already").code,
+        code::WRONG_STATE
+    );
+    assert_eq!(
+        line.admit(ADA, CY).expect_err("answered already").code,
+        code::WRONG_STATE
+    );
+    // they knock again, as often as they like
+    line.knock(CY).expect("knocked again");
+    assert_eq!(line.knocks()[0].standing, Standing::Waiting);
+    line.ok(CY, Op::Leave { call: CALL.into() });
+    assert_eq!(line.knocks(), Vec::<Knocking>::new());
+}
+
+/// The door holds as many as the call has room for: past MAX_PEOPLE, the
+/// people in or asked in with those waiting at the door, a knock is
+/// refused; one that ran out holds no place.
+#[test]
+fn the_door_holds_as_many_as_the_call_has_room_for() {
+    let mut line = Line::default();
+    line.start(ADA, &[BO]);
+    for who in 10..10 + (MAX_PEOPLE as u64 - 2) {
+        line.knock(who).expect("a knock");
+    }
+    assert_eq!(line.knock(99).expect_err("full").code, code::CAPACITY);
+    line.knock(10).expect("one knocking already knocks again");
+    line.now = KNOCK_SECONDS;
+    line.knock(99).expect("the others ran out");
 }
 
 #[test]
@@ -476,6 +852,15 @@ fn an_op_reads_as_a_person_would_say_it() {
         Op::Leave { call: CALL.into() },
         Op::Decline { call: CALL.into() },
         Op::End { call: CALL.into() },
+        Op::Knock { call: CALL.into() },
+        Op::Admit {
+            call: CALL.into(),
+            account: DEE,
+        },
+        Op::TurnAway {
+            call: CALL.into(),
+            account: DEE,
+        },
     ]
     .map(|op| crate::describe(&op).title);
     assert_eq!(
@@ -486,6 +871,20 @@ fn an_op_reads_as_a_person_would_say_it() {
             "Leave a call",
             "Decline a call",
             "End a call for everyone",
+            "Ask to join a call",
+            "Let someone into a call",
+            "Turn someone away from a call",
+        ]
+    );
+    let admit = crate::describe(&Op::Admit {
+        call: CALL.into(),
+        account: DEE,
+    });
+    assert_eq!(
+        admit.fields,
+        [
+            field("call", Value::text(CALL)),
+            field("letting in", Value::Account(DEE)),
         ]
     );
 }

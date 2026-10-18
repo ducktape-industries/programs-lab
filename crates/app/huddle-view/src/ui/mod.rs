@@ -28,6 +28,7 @@ use crate::words::{self, Device};
 use crate::{Huddle, Kind, Menu, RECORD_SECONDS, Row, Screen, Which, trouble};
 
 mod call;
+mod door;
 /// The phone's tree, which the view's root picks under a finger. It reads
 /// nothing of this one.
 pub(crate) mod phone;
@@ -138,10 +139,13 @@ fn f(pixels: Pixels) -> f32 {
 
 pub(crate) fn render(view: &mut Huddle, cx: &mut Context<Huddle>) -> AnyElement {
     let theme = *cx.global::<Theme>();
-    let screen = match (view.no_support(), view.screen) {
-        (true, _) => unsupported(&theme).into_any_element(),
-        (false, Screen::Check) => check(view, cx, &theme).into_any_element(),
-        (false, Screen::Room) => room(view, cx, &theme).into_any_element(),
+    let screen = match (view.no_support(), view.screen, &view.door) {
+        (true, ..) => unsupported(&theme).into_any_element(),
+        (false, Screen::Check, Some(door)) => {
+            door::screen(view, door, cx, &theme).into_any_element()
+        }
+        (false, Screen::Check, None) => check(view, cx, &theme).into_any_element(),
+        (false, Screen::Room, _) => room(view, cx, &theme).into_any_element(),
     };
     let base = div()
         .id("huddle")
@@ -958,6 +962,7 @@ fn stage(
         };
         return stage
             .child(float_strip(view, main, cx, theme))
+            .children(call::knocks(view, cx, theme))
             .children(trouble_rows(view, cx, theme))
             .children(network.map(|line| call::network_glass(line_glyph(view), line)))
             .when(view.no_keep_on_top_line, |stage| {
@@ -968,8 +973,11 @@ fn stage(
         width - 2. * f(design::space::LG),
         height - f(BAR) - 2. * f(design::space::LG),
     );
+    // the knocks after the tiles: what comes later draws over them
     if others.is_empty() {
-        return stage.child(tile(view, Shown::Alone, inner.0, cx, theme));
+        return stage
+            .child(tile(view, Shown::Alone, inner.0, cx, theme))
+            .children(call::knocks(view, cx, theme));
     }
     let shown = call::shown(others.len());
     let (cols, rows) = call::grid(shown + 1, inner.0, inner.1);
@@ -994,12 +1002,15 @@ fn stage(
                     .map(|tile| tile.w(px(tile_width)).h(px(tile_height))),
             )
         }));
-    stage.child(grid).children((others.len() > shown).then(|| {
-        people::more(others.len() - shown, &design::POINTER)
-            .absolute()
-            .right(design::space::LG + design::space::SM)
-            .bottom(design::space::LG + design::space::SM)
-    }))
+    stage
+        .child(grid)
+        .children((others.len() > shown).then(|| {
+            people::more(others.len() - shown, &design::POINTER)
+                .absolute()
+                .right(design::space::LG + design::space::SM)
+                .bottom(design::space::LG + design::space::SM)
+        }))
+        .children(call::knocks(view, cx, theme))
 }
 
 /// Where your tile is drawn: alone on the stage, one of a grid, or a
@@ -1113,7 +1124,7 @@ fn tile(
                         .bg(glass())
                         .text_color(white())
                         .text_size(design::text::CAPTION)
-                        .child(words::SOLO),
+                        .child(words::solo(view.call.is_some())),
                 )
                 .child(div().flex_1()),
         )
@@ -1221,6 +1232,7 @@ fn bar(view: &Huddle, cx: &mut Context<Huddle>, theme: &Theme) -> Stateful<Div> 
         )
         .child(split(view, Device::Camera, cx, theme))
         .child(call::invite(view, cx, theme))
+        .child(call::link_or_start(view, cx, theme))
         .child(
             div()
                 .id("huddle-leave")
