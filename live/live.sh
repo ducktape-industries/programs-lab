@@ -94,16 +94,16 @@ cargo run -q -p trade-stage --bin seed -- "$OUT/trade.params" "$OUT/seed"
 pack() { cargo run -q -p pack -- "$@"; }
 for program in $PROGRAMS; do
   name=$(echo "$program" | tr - _)
-  pack ducktape.view "$RELEASE/$name.wasm" "$RELEASE/${name}_view.wasm" "$dir/programs/$name.wasm"
-  pack ducktape.describe "$dir/programs/$name.wasm" "$RELEASE/$name.describe.wasm" "$dir/programs/$name.wasm"
-  if [ -f "$RELEASE/$name.notify.wasm" ]; then
-    pack ducktape.notify "$dir/programs/$name.wasm" "$RELEASE/$name.notify.wasm" "$dir/programs/$name.wasm"
+  pack ducktape.view "$WASM_OUT/$name.wasm" "$WASM_OUT/${name}_view.wasm" "$dir/programs/$name.wasm"
+  pack ducktape.describe "$dir/programs/$name.wasm" "$WASM_OUT/$name.describe.wasm" "$dir/programs/$name.wasm"
+  if [ -f "$WASM_OUT/$name.notify.wasm" ]; then
+    pack ducktape.notify "$dir/programs/$name.wasm" "$WASM_OUT/$name.notify.wasm" "$dir/programs/$name.wasm"
   fi
 done
 cp "$OUT/trade.params" "$dir/programs/trade.params"
 # The browser has no program: its view goes in as it is, a `[[views]]`
 # entry of live/founding.toml.
-cp "$RELEASE/browser_view.wasm" "$dir/programs/browser_view.wasm"
+cp "$WASM_OUT/browser_view.wasm" "$dir/programs/browser_view.wasm"
 # The lab's entries after the published ones; `up` fills each file name with its path
 # under programs/.
 cat live/founding.toml >>"$dir/programs/founding.toml"

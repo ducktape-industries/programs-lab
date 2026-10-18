@@ -11,11 +11,21 @@ VIEWS := trade-view arcade-view browser-view huddle-view
 NOTIFIERS := huddle
 
 BUILD_TARGET := $(abspath $(or $(CARGO_TARGET_DIR),target))
-RELEASE := $(BUILD_TARGET)/wasm32-unknown-unknown/release
+# The Cargo.toml profile every wasm build below comes out of, as programs
+# has it: `release`, the bytes main and duckpond take, or `fast`, the bytes
+# dev and garage take (`make wasm-views WASM_PROFILE=fast`), whose views and
+# notifiers wasm-opt skips. Each profile has its own output dir. Only the
+# command line sets it, never the environment: a shell that exports it must
+# not turn the next release into fast bytes.
+WASM_PROFILE = release
+WASM_OUT = $(BUILD_TARGET)/wasm32-unknown-unknown/$(WASM_PROFILE)
 
 # The view gate (wasm-opt, then the ABI check) is modules' own, run out of
-# the SDK checkout cargo fetched at the pinned rev.
+# the SDK checkout cargo fetched at the pinned rev; `--fast` skips wasm-opt
+# for any profile but release.
 SDK_TOOLS = $(shell $(CARGO) metadata --format-version 1 | python3 -c 'import json, os, sys; print(os.path.join(next(os.path.dirname(p["manifest_path"]) for p in json.load(sys.stdin)["packages"] if p["name"] == "view"), "..", "..", "..", "tools"))')
+
+VIEW_GATE = sh $(SDK_TOOLS)/view-gate.sh $(if $(filter release,$(WASM_PROFILE)),,--fast)
 
 # An app checkout at the rev that pins the same SDK line, and the debug
 # build of it that holds `--render-tree`.
@@ -28,12 +38,12 @@ CARGO_HOME_DIR := $(or $(CARGO_HOME),$(HOME)/.cargo)
 SYSROOT := $(shell rustc --print sysroot)
 WASM_RUSTFLAGS := --remap-path-prefix=$(CURDIR)=/build --remap-path-prefix=$(CARGO_HOME_DIR)=/cargo --remap-path-prefix=$(SYSROOT)=/rustc
 
-WASM_BUILD := RUSTFLAGS="$(WASM_RUSTFLAGS)" $(CARGO) build --release --target wasm32-unknown-unknown
+WASM_BUILD = RUSTFLAGS="$(WASM_RUSTFLAGS)" $(CARGO) build --profile $(WASM_PROFILE) --target wasm32-unknown-unknown
 
 # A program is a cdylib its view also links, with `program` off; in one
 # target dir each build would rebuild the crate for the other. So a program
 # builds in a target dir of its own, and its describe module in another.
-program_wasm = $(BUILD_TARGET)/$1/$2/wasm32-unknown-unknown/release/$(subst -,_,$2).wasm
+program_wasm = $(BUILD_TARGET)/$1/$2/wasm32-unknown-unknown/$(WASM_PROFILE)/$(subst -,_,$2).wasm
 
 # A live stage is qa's kit's (`make live`): QA is a qa checkout and KIT its
 # kit (default: $(QA)/kit, which builds it first). The stage is STAGE, its
@@ -45,7 +55,7 @@ KIT ?=
 STAGE ?= lab
 APP_REF ?= dev
 CORE_REF ?=
-LIVE = PROGRAMS="$(PROGRAMS)" QA="$(QA)" KIT="$(KIT)" STAGE="$(STAGE)" APP_REF="$(APP_REF)" CORE_REF="$(CORE_REF)" OUT="$(BUILD_TARGET)/live" RELEASE="$(RELEASE)" MAKE="$(MAKE)" sh live/live.sh
+LIVE = PROGRAMS="$(PROGRAMS)" QA="$(QA)" KIT="$(KIT)" STAGE="$(STAGE)" APP_REF="$(APP_REF)" CORE_REF="$(CORE_REF)" OUT="$(BUILD_TARGET)/live" WASM_OUT="$(WASM_OUT)" MAKE="$(MAKE)" sh live/live.sh
 
 .PHONY: test wasm-programs wasm-describes wasm-views wasm-notifiers shots live live-down bot
 
@@ -55,31 +65,31 @@ test:
 	$(CARGO) clippy --workspace --all-targets -- -D warnings
 	$(CARGO) test --workspace
 
-## builds every program for wasm32 into $(RELEASE)/<name>.wasm, unpacked:
+## builds every program for wasm32 into $(WASM_OUT)/<name>.wasm, unpacked:
 ## packing its view and describe module into it is the founding's job
 ## (`live/live.sh`, by `crates/tools/pack`).
 wasm-programs:
-	@mkdir -p $(RELEASE)
-	@$(foreach p,$(PROGRAMS),$(WASM_BUILD) --target-dir $(BUILD_TARGET)/programs/$(p) -p $(p) --features program && cp $(call program_wasm,programs,$(p)) $(RELEASE)/ || exit 1;)
+	@mkdir -p $(WASM_OUT)
+	@$(foreach p,$(PROGRAMS),$(WASM_BUILD) --target-dir $(BUILD_TARGET)/programs/$(p) -p $(p) --features program && cp $(call program_wasm,programs,$(p)) $(WASM_OUT)/ || exit 1;)
 
 ## builds every program's describe module (the `alloc` and `describe`
-## exports, no imports) into $(RELEASE)/<name>.describe.wasm, ABI-checked.
+## exports, no imports) into $(WASM_OUT)/<name>.describe.wasm, ABI-checked.
 wasm-describes:
-	@mkdir -p $(RELEASE)
-	@$(foreach p,$(PROGRAMS),$(WASM_BUILD) --target-dir $(BUILD_TARGET)/describe/$(p) -p $(p) --features describe && cp $(call program_wasm,describe,$(p)) $(RELEASE)/$(subst -,_,$(p)).describe.wasm && python3 $(SDK_TOOLS)/check-describe-abi.py $(RELEASE)/$(subst -,_,$(p)).describe.wasm || exit 1;)
+	@mkdir -p $(WASM_OUT)
+	@$(foreach p,$(PROGRAMS),$(WASM_BUILD) --target-dir $(BUILD_TARGET)/describe/$(p) -p $(p) --features describe && cp $(call program_wasm,describe,$(p)) $(WASM_OUT)/$(subst -,_,$(p)).describe.wasm && python3 $(SDK_TOOLS)/check-describe-abi.py $(WASM_OUT)/$(subst -,_,$(p)).describe.wasm || exit 1;)
 
-## builds every view for wasm32 under $(RELEASE)/, optimized and ABI-checked
-## as modules gates its own, and prints `name  bytes`.
+## builds every view for wasm32 under $(WASM_OUT)/, optimized (a fast build
+## is not) and ABI-checked as modules gates its own, and prints `name  bytes`.
 wasm-views:
-	@$(foreach v,$(VIEWS),$(WASM_BUILD) -p $(v) && WASM_OPT=$(WASM_OPT) sh $(SDK_TOOLS)/view-gate.sh $(v) $(RELEASE)/$(subst -,_,$(v)).wasm || exit 1;)
+	@$(foreach v,$(VIEWS),$(WASM_BUILD) -p $(v) && WASM_OPT=$(WASM_OPT) $(VIEW_GATE) $(v) $(WASM_OUT)/$(subst -,_,$(v)).wasm || exit 1;)
 
-## builds every notifier into $(RELEASE)/<program>.notify.wasm, optimized
-## and ABI-checked (alloc/init/tick) as modules gates its own, in a target
+## builds every notifier into $(WASM_OUT)/<program>.notify.wasm, optimized as
+## a view is, ABI-checked (alloc/init/tick) as modules gates its own, in a target
 ## dir of its own (the view crate with `notifier` on is another unit), and
 ## prints `name  bytes`.
 wasm-notifiers:
-	@mkdir -p $(RELEASE)
-	@$(foreach p,$(NOTIFIERS),$(WASM_BUILD) --target-dir $(BUILD_TARGET)/notify/$(p) -p $(p)-view --features notifier && cp $(BUILD_TARGET)/notify/$(p)/wasm32-unknown-unknown/release/$(p)_view.wasm $(RELEASE)/$(p).notify.wasm && WASM_OPT=$(WASM_OPT) sh $(SDK_TOOLS)/view-gate.sh $(p).notify $(RELEASE)/$(p).notify.wasm notifier || exit 1;)
+	@mkdir -p $(WASM_OUT)
+	@$(foreach p,$(NOTIFIERS),$(WASM_BUILD) --target-dir $(BUILD_TARGET)/notify/$(p) -p $(p)-view --features notifier && cp $(BUILD_TARGET)/notify/$(p)/wasm32-unknown-unknown/$(WASM_PROFILE)/$(p)_view.wasm $(WASM_OUT)/$(p).notify.wasm && WASM_OPT=$(WASM_OPT) $(VIEW_GATE) $(p).notify $(WASM_OUT)/$(p).notify.wasm notifier || exit 1;)
 
 ## a view with no node: writes the frames trade-view draws and has the
 ## app's real renderer paint them into shots/*.png (Linux: Xvfb, xdotool,
