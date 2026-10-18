@@ -1266,6 +1266,38 @@ fn a_door_left_for_another_withdraws_its_knock() {
     assert!(line.cx.has_text("bo is in a call"), "{:?}", line.cx.texts());
 }
 
+/// At one call's door, answering another you were asked into withdraws
+/// the knock at the first.
+#[test]
+fn answering_a_call_from_a_door_withdraws_its_knock() {
+    let mut line = line(false);
+    adas_alone(&mut line);
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    line.block(
+        BO,
+        Op::Start {
+            call: "call-bo".into(),
+            invited: vec![ME],
+        },
+    );
+    line.route.send("call/call-bo".into());
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().as_slice(),
+        [
+            Op::Knock { call: ADAS.into() },
+            Op::Leave { call: ADAS.into() },
+            Op::Join {
+                call: "call-bo".into()
+            },
+        ]
+    );
+    assert!(line.cx.find("huddle-bar").is_some(), "in Bo's call");
+}
+
 /// Copy link puts the call's link on the clipboard and says so for a
 /// while.
 #[test]
