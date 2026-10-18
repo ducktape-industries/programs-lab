@@ -16,28 +16,28 @@ version = "0.1.0"
 # ---- sdk-line: programs dev a358ea23, WIRE 967e0ea397677413 (a program's access and resource,
 # programs#456/#457, and the fast profile, #454; on core dev 89f3cf555 and gpui-pre c698ed2c).
 # The views here are built at the rev the app pins, so this moves when the app's pin moves.
-view = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+view = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
 # What a program is written against: the kernel ABI (a copy of core's, never
 # to drift from it), the program SDK and its mock host, the tables, and the
 # describe module.
-abi = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
-program = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
-store = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
-describe = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+abi = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+program = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+store = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+describe = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
 # The op that gives a key its account: what a live stage's seed sends first
 # (`crates/tools/trade-stage`), the market maker's account by its
 # key (`crates/bots/trade-bot`), and the profiles arcade-view reads names from.
-identity = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+identity = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
 # What packs a program with its view and its describe module, as a founding
 # takes it (`crates/tools/pack`, which `live/live.sh` runs).
-founding = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+founding = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
 # The chain id a live track's namespace starts with (`ChainId::of`), as the
 # app names it: what tetris-bot names the versus room by.
-ducklink = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
+ducklink = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
 # `canvas().rect` takes a `Bounds` made with gpui's `point` and `size`, which
 # the SDK does not re-export.
 # The rev is the one modules names.
-gpui = { package = "gpui-pre", git = "https://github.com/ducktape-industries/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486", default-features = false }
+gpui = { package = "gpui-pre", git = "duck://garage-b703fab0/forge/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486", default-features = false }
 
 # ---- here
 trade = { path = "crates/app/trade" }
@@ -96,11 +96,35 @@ codegen-units = 16
 # crates. A dependency's `[patch]` does not reach its dependents, so they are
 # repeated here, at the same rev.
 [patch.crates-io]
-rmp-serde = { git = "https://github.com/ducktape-industries/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486" }
-gpui-pre-scheduler = { git = "https://github.com/ducktape-industries/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486" }
+rmp-serde = { git = "duck://garage-b703fab0/forge/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486" }
+gpui-pre-scheduler = { git = "duck://garage-b703fab0/forge/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486" }
 
 # The SDK's fake node (`view`'s `rig`) links programs' blobs crate, which links
 # core's `blob` and with it core's abi: one abi in the graph, the programs
 # copy, as the app patches it.
+[patch."duck://garage-b703fab0/forge/ducktape"]
+abi = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655", package = "abi" }
+
+# programs and core, at the revs above, still name their dependencies by GitHub link: the same
+# crates from forge, so the graph holds one copy of each and nothing is fetched from GitHub.
 [patch."https://github.com/ducktape-industries/ducktape"]
-abi = { git = "https://github.com/ducktape-industries/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655", package = "abi" }
+abi = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655", package = "abi" }
+blob = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+consensus = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+halo = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+host = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+keyscheme = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+live-wire = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+node = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+noded = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+runtime = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+state = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+statesync = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+
+[patch."https://github.com/ducktape-industries/gpui-pre"]
+gpui-pre = { git = "duck://garage-b703fab0/forge/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486" }
+gpui-pre-scheduler = { git = "duck://garage-b703fab0/forge/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486" }
+rmp-serde = { git = "duck://garage-b703fab0/forge/gpui-pre", rev = "c698ed2c7e8eeed46641e5ea9622ee55b84b1486" }
+
+[patch."https://github.com/ducktape-industries/fluent31"]
+fluent31 = { git = "duck://garage-b703fab0/forge/fluent31", rev = "76ba1867bc0ba9c09bb8387149c07844f1d2395c" }

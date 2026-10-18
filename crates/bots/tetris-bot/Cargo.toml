@@ -17,10 +17,10 @@ ducklink.workspace = true
 borsh.workspace = true
 # the live wire of core `dev` 89f3cf555, the rev programs a358ea23 pins:
 # a hello names its key's scheme, and verifying is the node's
-live-wire = { git = "https://github.com/ducktape-industries/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+live-wire = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
 # `/v1/status` decodes into the node's own types (the workspace patches
 # core's abi to the programs copy, so it is that one)
-core-abi = { package = "abi", git = "https://github.com/ducktape-industries/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+core-abi = { package = "abi", git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
 # the device key, signed with as the app signs
 commonware-cryptography = "2026.9.0"
 commonware-codec = "2026.9.0"
@@ -31,7 +31,7 @@ tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 
 [dev-dependencies]
 # the node's own `Status`, which the copy in `live.rs` must decode
-noded = { git = "https://github.com/ducktape-industries/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
+noded = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
 # the node's check of the handshake's proof, which the fake node runs
-keyscheme = { git = "https://github.com/ducktape-industries/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb", features = ["testkit"] }
+keyscheme = { git = "duck://garage-b703fab0/forge/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb", features = ["testkit"] }
 tokio = { version = "1", features = ["test-util"] }

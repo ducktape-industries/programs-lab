@@ -1,0 +1,3 @@
+# duck:// links: cargo fetches git dependencies through git, which runs git-remote-duck
+[net]
+git-fetch-with-cli = true

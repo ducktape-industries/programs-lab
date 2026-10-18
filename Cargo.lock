@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "abi"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "borsh",
  "design",
@@ -14,7 +14,7 @@ dependencies = [
 [[package]]
 name = "access"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -37,7 +37,7 @@ dependencies = [
 [[package]]
 name = "activity"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -304,7 +304,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 [[package]]
 name = "attribution"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -365,7 +365,7 @@ dependencies = [
 [[package]]
 name = "awaits"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -551,13 +551,13 @@ dependencies = [
 [[package]]
 name = "blob"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "borsh",
  "commonware-cryptography",
  "futures",
- "halo 0.1.0 (git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb)",
+ "halo 0.1.0 (git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb)",
  "sha1-checked",
  "sha2 0.10.9",
  "thiserror 2.0.21",
@@ -568,7 +568,7 @@ dependencies = [
 [[package]]
 name = "blobs"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "blob",
@@ -737,7 +737,7 @@ dependencies = [
 [[package]]
 name = "chat"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "attribution",
@@ -1251,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "consensus"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "borsh",
@@ -1828,7 +1828,7 @@ dependencies = [
 [[package]]
 name = "describe"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "borsh",
  "serde",
@@ -1837,7 +1837,7 @@ dependencies = [
 [[package]]
 name = "design"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "sha2 0.10.9",
 ]
@@ -1917,7 +1917,7 @@ checksum = "4c3cf4824e2d5f025c7b531afcb2325364084a16806f6d47fbc1f5fbd9960590"
 [[package]]
 name = "ducklink"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "program",
@@ -1991,7 +1991,7 @@ dependencies = [
 [[package]]
 name = "egress"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -2122,7 +2122,7 @@ dependencies = [
 [[package]]
 name = "error"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "borsh",
  "serde",
@@ -2240,7 +2240,7 @@ checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 [[package]]
 name = "files"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "access",
@@ -2295,7 +2295,7 @@ checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 [[package]]
 name = "fluent31"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/fluent31?rev=76ba1867bc0ba9c09bb8387149c07844f1d2395c#76ba1867bc0ba9c09bb8387149c07844f1d2395c"
+source = "git+duck://garage-b703fab0/forge/fluent31?rev=76ba1867bc0ba9c09bb8387149c07844f1d2395c#76ba1867bc0ba9c09bb8387149c07844f1d2395c"
 dependencies = [
  "crc32fast",
  "crossbeam-skiplist",
@@ -2356,7 +2356,7 @@ dependencies = [
 [[package]]
 name = "forge"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "access",
@@ -2380,7 +2380,7 @@ dependencies = [
 [[package]]
 name = "founding"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "access",
@@ -2393,7 +2393,7 @@ dependencies = [
  "egress",
  "files",
  "forge",
- "halo 0.1.0 (git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655)",
+ "halo 0.1.0 (git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655)",
  "harness",
  "identity",
  "program",
@@ -2601,7 +2601,7 @@ dependencies = [
 [[package]]
 name = "gitcore"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "miniz_oxide 0.8.9",
  "sha1-checked",
@@ -2640,7 +2640,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre"
 version = "0.3.9"
-source = "git+https://github.com/ducktape-industries/gpui-pre?rev=c698ed2c7e8eeed46641e5ea9622ee55b84b1486#c698ed2c7e8eeed46641e5ea9622ee55b84b1486"
+source = "git+duck://garage-b703fab0/forge/gpui-pre?rev=c698ed2c7e8eeed46641e5ea9622ee55b84b1486#c698ed2c7e8eeed46641e5ea9622ee55b84b1486"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -2766,7 +2766,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre-scheduler"
 version = "0.3.9"
-source = "git+https://github.com/ducktape-industries/gpui-pre?rev=c698ed2c7e8eeed46641e5ea9622ee55b84b1486#c698ed2c7e8eeed46641e5ea9622ee55b84b1486"
+source = "git+duck://garage-b703fab0/forge/gpui-pre?rev=c698ed2c7e8eeed46641e5ea9622ee55b84b1486#c698ed2c7e8eeed46641e5ea9622ee55b84b1486"
 dependencies = [
  "async-task",
  "backtrace",
@@ -2863,7 +2863,7 @@ dependencies = [
 [[package]]
 name = "halo"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "bytes",
@@ -2883,7 +2883,7 @@ dependencies = [
 [[package]]
 name = "halo"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -2895,7 +2895,7 @@ dependencies = [
 [[package]]
 name = "harness"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "access",
@@ -3000,7 +3000,7 @@ dependencies = [
 [[package]]
 name = "host"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "async-trait",
@@ -3273,7 +3273,7 @@ checksum = "3d3067d79b975e8844ca9eb072e16b31c3c1c36928edf9c6789548c524d0d954"
 [[package]]
 name = "identity"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -3498,7 +3498,7 @@ dependencies = [
 [[package]]
 name = "keyscheme"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "base64 0.22.1",
@@ -3603,7 +3603,7 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 [[package]]
 name = "live-wire"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "borsh",
@@ -3832,7 +3832,7 @@ dependencies = [
 [[package]]
 name = "node"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "borsh",
@@ -3851,7 +3851,7 @@ dependencies = [
 [[package]]
 name = "noded"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "axum",
@@ -3866,7 +3866,7 @@ dependencies = [
  "commonware-utils",
  "consensus",
  "futures",
- "halo 0.1.0 (git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb)",
+ "halo 0.1.0 (git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb)",
  "hex",
  "host",
  "http-body-util",
@@ -4562,7 +4562,7 @@ dependencies = [
 [[package]]
 name = "program"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "blob",
@@ -4576,7 +4576,7 @@ dependencies = [
 [[package]]
 name = "program-derive"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4586,7 +4586,7 @@ dependencies = [
 [[package]]
 name = "programs"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "blob",
@@ -5264,7 +5264,7 @@ dependencies = [
 [[package]]
 name = "rmp-serde"
 version = "1.3.1"
-source = "git+https://github.com/ducktape-industries/gpui-pre?rev=c698ed2c7e8eeed46641e5ea9622ee55b84b1486#c698ed2c7e8eeed46641e5ea9622ee55b84b1486"
+source = "git+duck://garage-b703fab0/forge/gpui-pre?rev=c698ed2c7e8eeed46641e5ea9622ee55b84b1486#c698ed2c7e8eeed46641e5ea9622ee55b84b1486"
 dependencies = [
  "rmp",
  "serde",
@@ -5288,7 +5288,7 @@ dependencies = [
 [[package]]
 name = "runtime"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "async-trait",
@@ -5418,7 +5418,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -5842,7 +5842,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "state"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "borsh",
@@ -5860,7 +5860,7 @@ dependencies = [
 [[package]]
 name = "statesync"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
+source = "git+duck://garage-b703fab0/forge/ducktape?rev=89f3cf55570df68f7f66f9b31814dcc555673abb#89f3cf55570df68f7f66f9b31814dcc555673abb"
 dependencies = [
  "abi",
  "borsh",
@@ -5879,7 +5879,7 @@ dependencies = [
 [[package]]
 name = "store"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
@@ -6841,12 +6841,12 @@ dependencies = [
 [[package]]
 name = "valset"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "abi",
  "borsh",
  "describe",
- "halo 0.1.0 (git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655)",
+ "halo 0.1.0 (git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655)",
  "program",
  "programs",
  "store",
@@ -6867,7 +6867,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "view"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "access",
  "base64 0.22.1",
@@ -6896,7 +6896,7 @@ dependencies = [
 [[package]]
 name = "view-derive"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "quote",
  "syn 2.0.119",
@@ -6905,7 +6905,7 @@ dependencies = [
 [[package]]
 name = "view-wire"
 version = "0.1.0"
-source = "git+https://github.com/ducktape-industries/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
+source = "git+duck://garage-b703fab0/forge/programs?rev=a358ea23027f529298126f4543b23ee2b87af655#a358ea23027f529298126f4543b23ee2b87af655"
 dependencies = [
  "accesskit",
  "borsh",
