@@ -373,8 +373,8 @@ The version of a publish is the commit's first-parent count
   different one.
 
 ```sh
-curl -s https://dl.ducktape.industries/programs-lab/main/latest.json
-curl -sO https://dl.ducktape.industries/programs-lab/main/<N>/trade.wasm && sha256sum trade.wasm
+curl -fsS https://dl.ducktape.industries/programs-lab/main/latest.json
+curl -fsSO https://dl.ducktape.industries/programs-lab/main/<N>/trade.wasm && sha256sum trade.wasm
 ```
 
 A body is checked by the sha256 its manifest names, read over HTTPS;

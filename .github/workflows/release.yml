@@ -64,6 +64,7 @@ jobs:
           path: ${{ runner.temp }}/dl
           if-no-files-found: error
           retention-days: 7
+          overwrite: true # a rerun of the build replaces its earlier attempt's stage
 
   upload:
     needs: build

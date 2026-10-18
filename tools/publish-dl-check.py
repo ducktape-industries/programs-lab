@@ -6,7 +6,8 @@ first-parent count, the manifest has its shape (the programs rev Cargo.toml pins
 read out of the views packed into a program), the upload order
 ends with the version's manifest and then latest.json, a rerun skips what is there, a stage
 whose file differs from its manifest or a version's file with other bytes stops the upload
-before any upload, and latest.json never moves back.
+before any upload, and latest.json never moves back. A stage refuses views of two wires, two
+programs revs and a directory that is no earlier stage.
    publish-dl-check.py   (run by `make dl-publish-check`)"""
 
 import hashlib
@@ -141,10 +142,10 @@ def main():
 
         stage_dir = scratch / "stage"
 
-        def publish(*args):
+        def publish(*args, into=stage_dir):
             command = [sys.executable, str(PUBLISH), *args]
             if args[0] == "stage":
-                command += [str(stage_dir), *(str(build / name) for name in files)]
+                command += [str(into), *(str(build / name) for name in files)]
             return subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True)
 
         def log():
@@ -187,6 +188,11 @@ def main():
         run = publish("stage", "dev", "fast")
         check(run.returncode != 0 and "one programs rev" in run.stderr, f"two programs revs are refused: {run.stderr}")
         git(repo, "reset", "-q", "--hard", commit)
+        elsewhere = scratch / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "notes").write_text("mine")
+        run = publish("stage", "dev", "fast", into=elsewhere)
+        check(run.returncode != 0 and (elsewhere / "notes").exists(), f"a directory that is no stage: {run.stderr}")
         check(publish("stage", "dev", "fast").returncode == 0, "the stage is written again")
 
         run = publish("upload", str(stage_dir))

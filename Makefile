@@ -39,7 +39,11 @@ APP_TARGET ?= $(APP)/target
 # this checkout's, cargo's and the toolchain's absolute paths.
 CARGO_HOME_DIR := $(or $(CARGO_HOME),$(HOME)/.cargo)
 SYSROOT := $(shell rustc --print sysroot)
-WASM_RUSTFLAGS := --remap-path-prefix=$(CURDIR)=/build --remap-path-prefix=$(CARGO_HOME_DIR)=/cargo --remap-path-prefix=$(SYSROOT)=/rustc
+# Where the rust-src component is installed (rust-analyzer asks for it), rustc
+# names std's sources by their place under the sysroot, not by /rustc/<commit>
+# as it does without it. The last matching remap wins: both read /rustc/<commit>.
+RUSTC_COMMIT := $(shell rustc -vV | sed -n 's/^commit-hash: //p')
+WASM_RUSTFLAGS := --remap-path-prefix=$(CURDIR)=/build --remap-path-prefix=$(CARGO_HOME_DIR)=/cargo --remap-path-prefix=$(SYSROOT)=/rustc --remap-path-prefix=$(SYSROOT)/lib/rustlib/src/rust=/rustc/$(RUSTC_COMMIT)
 
 WASM_BUILD = RUSTFLAGS="$(WASM_RUSTFLAGS)" $(CARGO) build --profile $(WASM_PROFILE) --target wasm32-unknown-unknown
 
