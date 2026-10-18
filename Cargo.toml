@@ -15,7 +15,8 @@ version = "0.1.0"
 [workspace.dependencies]
 # ---- sdk-line: programs dev a358ea23, WIRE 967e0ea397677413 (a program's access and resource,
 # programs#456/#457, and the fast profile, #454; on core dev 89f3cf555 and gpui-pre c698ed2c).
-# The views here are built at the rev the app pins, so this moves when the app's pin moves.
+# The views here are built at the rev the app pins, so this moves when the app's pin moves, and
+# the [patch] tables at the end with it: they name core, gpui-pre and fluent31 at programs' revs.
 view = { git = "duck://garage-b703fab0/forge/programs", rev = "a358ea23027f529298126f4543b23ee2b87af655" }
 # What a program is written against: the kernel ABI (a copy of core's, never
 # to drift from it), the program SDK and its mock host, the tables, and the

@@ -45,7 +45,8 @@ LATEST = "public, max-age=60"
 MANIFEST_SECTION = b"ducktape.view.manifest"
 WIRE_ID_LINE = 5
 WASM = b"\0asm\x01\0\0\0"
-SDK = "https://github.com/ducktape-industries/programs"
+# programs on garage's forge, as Cargo.toml links it
+SDK = "duck://garage-b703fab0/forge/programs"
 USAGE = "usage: publish-dl.py stage <channel> <profile> <stage> <file>... | upload <stage>"
 
 

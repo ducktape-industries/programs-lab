@@ -22,6 +22,20 @@ it is.
 The SDK is programs at the rev the app pins (`Cargo.toml`'s `sdk-line`),
 so the pin moves when the app's does.
 
+Every git dependency is a `duck://` link to garage's forge, not GitHub:
+programs, core, gpui-pre and fluent31 by their links, and the GitHub links
+programs and core carry at those revs by `[patch]` tables at the end of
+`Cargo.toml`, which move with the sdk-line. cargo fetches them through git
+(`.cargo/config.toml`), so a build needs `git-remote-duck` on `PATH` and
+garage's node known to git, once:
+
+```
+git duck login https://garage.ducktape.industries --read-only
+```
+
+Reads need no key. `.github/workflows/release.yml` shows how a machine
+without the two tools takes them from garage.
+
 ## trade
 
 An account takes its practice funds (`Op::Fund`), places limit and market

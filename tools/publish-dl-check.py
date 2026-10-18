@@ -21,7 +21,7 @@ import tempfile
 PUBLISH = pathlib.Path(__file__).resolve().parent / "publish-dl.py"
 WIRE = "0123456789abcdef"
 REV = "a358ea23027f529298126f4543b23ee2b87af655"
-SDK = "https://github.com/ducktape-industries/programs"
+SDK = "duck://garage-b703fab0/forge/programs"
 
 # `aws s3api head-object` and `aws s3 cp` over $BUCKET_DIR/<bucket>/<key>, the metadata and
 # Cache-Control of each object beside it as <key>.head, each upload's key appended to $BUCKET_DIR/log

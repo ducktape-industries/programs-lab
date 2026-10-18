@@ -56,6 +56,23 @@ jobs:
           tar xzf wasm-tools-1.253.0-x86_64-linux.tar.gz
           echo "$RUNNER_TEMP/binaryen-version_132/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/wasm-tools-1.253.0-x86_64-linux" >> "$GITHUB_PATH"
+      # every git dependency is a duck:// link to garage's forge (Cargo.toml): git's remote helper
+      # for them and `git duck`, from a garage blob checked against its id (the sha256 of the
+      # blob as framed), then garage's node for git; reads need no key
+      - run: |
+          cd "$RUNNER_TEMP"
+          blob=ff2c876b4bef422122581f9e86a31d19e4231e6ff95330479b0cb90a20a9bf64
+          # the node takes the borsh BlobId (tag 0 = sha256, the digest) and answers an Option
+          # (tag, u32 length) of the blob as framed: `kind size\0` and the body
+          python3 -c 'import sys; sys.stdout.buffer.write(b"\0" + bytes.fromhex(sys.argv[1]))' "$blob" \
+            | curl -sSf --data-binary @- -o answer https://garage.ducktape.industries/v1/blob/get
+          tail -c +6 answer > framed
+          echo "$blob  framed" | sha256sum -c
+          mkdir -p duck
+          python3 -c 'import sys; b = open("framed", "rb").read(); sys.stdout.buffer.write(b[b.index(b"\0") + 1:])' \
+            | tar xz -C duck
+          echo "$RUNNER_TEMP/duck/bin" >> "$GITHUB_PATH"
+      - run: git duck login https://garage.ducktape.industries --read-only
       - run: make dl-publish-check
       - run: make dl-stage CHANNEL="$CHANNEL" WASM_PROFILE="$PROFILE" DL_OUT="$RUNNER_TEMP/dl" CARGO="cargo --locked"
       - uses: actions/upload-artifact@v4

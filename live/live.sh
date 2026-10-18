@@ -55,8 +55,8 @@ for tool in cargo git python3 wasm-opt wasm-tools ps; do
   command -v "$tool" >/dev/null || die "$tool is not on PATH (the README names what a live stage needs)"
 done
 
-# The programs rev a Cargo.toml pins.
-pin() { sed -n 's|.*ducktape-industries/programs", rev = "\([0-9a-f]*\)".*|\1|p' "$1" | sort -u; }
+# The programs rev a Cargo.toml pins, by its forge link (this workspace) or its GitHub one (the app).
+pin() { sed -n 's|.*/programs", rev = "\([0-9a-f]*\)".*|\1|p' "$1" | sort -u; }
 sdk=$(pin Cargo.toml)
 case $sdk in
 '' | *[!0-9a-f]*) die "Cargo.toml does not pin one programs rev (its sdk-line)" ;;
