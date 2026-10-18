@@ -116,8 +116,8 @@ fn log_refused(cx: &mut Context<HuddleNotices>, what: &str, refusal: &Error) {
     ));
 }
 
-/// What stands now: each notice to be out, by its tag, with its `until`.
-type Standing = Vec<(String, u64, Notification)>;
+/// What is to be out now: each notice, by its tag, with its `until`.
+type Postings = Vec<(String, u64, Notification)>;
 
 impl HuddleNotices {
     fn session_changed(&mut self, next: Session, cx: &mut Context<Self>) {
@@ -170,34 +170,34 @@ impl HuddleNotices {
         };
         self.asked += 1;
         let (run, asked) = (self.run, self.asked);
-        let standing = standing(cx.host(), account, self.session.chain_id.clone());
-        cx.land(standing, move |notices, standing, cx| {
+        let postings = postings(cx.host(), account, self.session.chain_id.clone());
+        cx.land(postings, move |notices, postings, cx| {
             if (notices.run, notices.asked) != (run, asked) {
                 return;
             }
-            match standing {
-                Ok(standing) => notices.settle(standing, cx),
+            match postings {
+                Ok(postings) => notices.settle(postings, cx),
                 Err(refusal) => log_refused(cx, "what rings and knocks", &refusal),
             }
         })
         .detach();
     }
 
-    /// `standing` is what is to be out now: a notice not posted yet, or
+    /// `postings` is what is to be out now: a notice not posted yet, or
     /// posted to another `until`, is posted; one posted that is not here
     /// any more is withdrawn. The check runs while anything is out.
-    fn settle(&mut self, standing: Standing, cx: &mut Context<Self>) {
+    fn settle(&mut self, postings: Postings, cx: &mut Context<Self>) {
         let Some(posted) = &mut self.posted else {
             return;
         };
         let before = posted.clone();
-        for (tag, until, notice) in &standing {
+        for (tag, until, notice) in &postings {
             if posted.insert(tag.clone(), *until) != Some(*until) {
                 cx.host().notify::<NotifyPost>(notice.clone());
             }
         }
         posted.retain(|tag, _| {
-            let stands = standing.iter().any(|(standing, ..)| standing == tag);
+            let stands = postings.iter().any(|(posting, ..)| posting == tag);
             if !stands {
                 cx.host().notify::<NotifySeen>(tag.clone());
             }
@@ -226,14 +226,14 @@ impl HuddleNotices {
 /// The notices to be out for `account` on `chain`: a ring for each call
 /// ringing them, a notice for each knock at the doors of the calls they
 /// are in, each named by identity (the number where it names none).
-async fn standing(host: Host, account: u64, chain: String) -> Result<Standing, Error> {
-    let mut standing = Vec::new();
+async fn postings(host: Host, account: u64, chain: String) -> Result<Postings, Error> {
+    let mut postings = Vec::new();
     for listed in host.query(huddle::ask::Ringing { account }).await? {
         let Some(until) = listed.call.ring_until(account) else {
             continue;
         };
         let caller = name(&host, listed.call.caller).await;
-        standing.push((
+        postings.push((
             tag(&listed.id),
             until,
             notice(&listed, &caller, until, &chain),
@@ -243,14 +243,14 @@ async fn standing(host: Host, account: u64, chain: String) -> Result<Standing, E
         for knocker in waiting {
             let who = name(&host, knocker.account).await;
             let until = knocker.knock.at + KNOCK_SECONDS;
-            standing.push((
+            postings.push((
                 knock_tag(&call, knocker.account),
                 until,
                 knock(&call, knocker.account, &who, until, &chain),
             ));
         }
     }
-    Ok(standing)
+    Ok(postings)
 }
 
 /// What identity calls `account`, or their number.

@@ -273,9 +273,11 @@ impl Huddle {
         self.arriving = Some(id.clone());
         let asked = cx.host().query(huddle::ask::Call { id: id.clone() });
         cx.land(asked, move |view, call, cx| {
-            if view.arriving.take() != Some(id.clone()) {
+            // called off, or a later link's arrival is the one on its way
+            if view.arriving.as_deref() != Some(id.as_str()) {
                 return;
             }
+            view.arriving = None;
             let call = match call {
                 Ok(call) => call,
                 Err(refusal) => return view.call_failed(&refusal.message, cx),
