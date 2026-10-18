@@ -1057,6 +1057,36 @@ fn turned_away_or_unanswered_the_door_says_so_and_asks_again() {
     );
 }
 
+/// The link opened again after a turn away asks anew: what was answered
+/// before is not said until you ask.
+#[test]
+fn a_door_opened_again_asks_anew() {
+    let mut line = line(false);
+    adas_alone(&mut line);
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    line.block(
+        ADA,
+        Op::TurnAway {
+            call: ADAS.into(),
+            account: ME,
+        },
+    );
+    line.cx.simulate_click("huddle-door-leave");
+    line.cx.run_until_parked();
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    line.wrote();
+    assert!(
+        line.cx.has_text("ada is in a call"),
+        "{:?}",
+        line.cx.texts()
+    );
+    assert!(!line.cx.has_text("You were not let in."));
+}
+
 /// Cancel while waiting withdraws the knock (Leave); Not now before asking
 /// sends nothing.
 #[test]
@@ -1106,6 +1136,10 @@ fn start_a_call_alone_and_answer_the_knocks_at_its_door() {
     );
     assert!(line.cx.has_text("Copy link"));
     assert!(!line.cx.has_text("Start a call"));
+    assert!(
+        line.cx
+            .has_text("Only you are here. Invite someone, or copy the link.")
+    );
     assert_eq!(
         line.pieces().microphone,
         Some((track(MINTED, "mic/1".into()), false))

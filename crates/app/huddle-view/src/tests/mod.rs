@@ -722,7 +722,7 @@ fn trouble_is_said_and_retried() {
     cx.simulate_media_state(camera.clone(), status(MediaStatus::NoDevice));
     assert!(cx.has_text("No camera found"));
     cx.simulate_click("huddle-camera-without");
-    assert!(cx.has_text("Only you are here. Invite someone to call them."));
+    assert!(cx.has_text("Only you are here. Invite someone, or start a call and share its link."));
     assert!(camera_piece(&cx).is_none(), "joined without the camera");
 }
 
@@ -774,7 +774,7 @@ fn join_and_leave_switch_screens_keeping_picks() {
     cx.simulate_click("huddle-menu-1");
     cx.simulate_click("huddle-mirror");
     cx.simulate_click("huddle-join");
-    assert!(cx.has_text("Only you are here. Invite someone to call them."));
+    assert!(cx.has_text("Only you are here. Invite someone, or start a call and share its link."));
     assert!(cx.has_text("00:00 · only you"), "{:?}", cx.texts());
     let (_, device, mirror, fit) = camera_piece(&cx).unwrap();
     assert_eq!(

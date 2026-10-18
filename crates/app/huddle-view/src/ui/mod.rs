@@ -1124,7 +1124,7 @@ fn tile(
                         .bg(glass())
                         .text_color(white())
                         .text_size(design::text::CAPTION)
-                        .child(words::SOLO),
+                        .child(words::solo(view.call.is_some())),
                 )
                 .child(div().flex_1()),
         )

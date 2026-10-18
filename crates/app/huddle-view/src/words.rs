@@ -73,8 +73,14 @@ pub(crate) const JOIN: &str = "Join huddle";
 /// Out of the room.
 pub(crate) const LEAVE: &str = "Leave";
 
-/// The room says when no one else is in it.
-pub(crate) const SOLO: &str = "Only you are here. Invite someone to call them.";
+/// The room says when no one else is in it: Invite rings people, and a
+/// call's link brings them to its door.
+pub(crate) fn solo(call: bool) -> &'static str {
+    match call {
+        false => "Only you are here. Invite someone, or start a call and share its link.",
+        true => "Only you are here. Invite someone, or copy the link.",
+    }
+}
 
 /// What fixes a device's trouble.
 pub(crate) const OPEN_SETTINGS: &str = "Open Settings";

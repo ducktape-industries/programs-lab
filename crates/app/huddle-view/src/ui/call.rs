@@ -191,6 +191,7 @@ pub(super) fn knocks(
             .child(design::avatar(&name, px(28.), theme))
             .child(
                 div()
+                    .flex_1()
                     .min_w(px(0.))
                     .text_size(design::text::SECONDARY)
                     .font_weight(FontWeight::MEDIUM)
@@ -218,6 +219,8 @@ pub(super) fn knocks(
                 .kind(design::Kind::Outline),
             )
     });
+    // one column, centred, as wide as its widest card: every card across
+    // it, so the names and the answers line up
     Some(
         div()
             .id("huddle-knocks")
@@ -226,10 +229,15 @@ pub(super) fn knocks(
             .left_0()
             .right_0()
             .flex()
-            .flex_col()
-            .items_center()
-            .gap(design::space::XS)
-            .children(cards),
+            .justify_center()
+            .child(
+                div()
+                    .min_w(px(0.))
+                    .flex()
+                    .flex_col()
+                    .gap(design::space::XS)
+                    .children(cards),
+            ),
     )
 }
 

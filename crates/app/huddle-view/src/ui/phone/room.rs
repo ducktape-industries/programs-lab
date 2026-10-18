@@ -336,12 +336,12 @@ fn tile(
         .when(speaking, |tile| tile.child(people::ring(theme)))
         .when(alone, |tile| {
             tile.child(parts::chip(view, speaking, ladder, theme))
-                .child(solo(ladder))
+                .child(solo(view, ladder))
         })
 }
 
 /// The room says when no one else is in it.
-fn solo(ladder: &Ladder) -> Div {
+fn solo(view: &Huddle, ladder: &Ladder) -> Div {
     div()
         .absolute()
         .left(design::space::LG)
@@ -359,7 +359,7 @@ fn solo(ladder: &Ladder) -> Div {
                 .text_color(white())
                 .text_type(ladder.caption)
                 .text_center()
-                .child(words::SOLO),
+                .child(words::solo(view.call.is_some())),
         )
 }
 

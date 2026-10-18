@@ -349,28 +349,31 @@ impl Huddle {
     }
 
     /// A block wrote the door's call: let in, you join (as a phone or a
-    /// desktop does); turned away or run out, the door says so; the call
-    /// gone, the check does.
+    /// desktop does); once you asked, turned away or run out, the door
+    /// says so; the call gone, the check does.
     fn check_door(&mut self, cx: &mut Context<Self>) {
         let (Some(door), Some(me)) = (&self.door, self.session.account) else {
             return;
         };
         let id = door.id.clone();
         let host = cx.host();
+        let read = id.clone();
         let asked = async move {
-            let call = host.query(huddle::ask::Call { id: id.clone() }).await?;
-            let knocks = host.query(huddle::ask::Knocks { call: id }).await?;
+            let call = host.query(huddle::ask::Call { id: read.clone() }).await?;
+            let knocks = host.query(huddle::ask::Knocks { call: read }).await?;
             Ok::<_, Error>((call, knocks))
         };
         cx.spawn(async move |view, cx| {
             let answered = asked.await;
             let _ = view.update_in(cx, |view, window, cx| {
-                let Some(door) = &view.door else { return };
+                // away from this door, or at another, since it was read
+                if view.door.as_ref().is_none_or(|door| door.id != id) {
+                    return;
+                }
                 let (call, knocks) = match answered {
                     Ok(answered) => answered,
                     Err(refusal) => return view.call_failed(&refusal.message, cx),
                 };
-                let id = door.id.clone();
                 match call {
                     None | Some(huddle::Call { ended: Some(_), .. }) => {
                         view.door = None;
@@ -386,14 +389,26 @@ impl Huddle {
                             .flatten()
                             .find(|knocking| knocking.account == me)
                             .map(|knocking| knocking.standing);
-                        let stage = match standing {
-                            Some(Standing::TurnedAway) => Some(DoorStage::TurnedAway),
-                            Some(Standing::RanOut) => Some(DoorStage::NoAnswer),
-                            _ => None,
+                        let now = view.ticks;
+                        // not asked yet on this visit: a knock from before
+                        // is not this one's answer
+                        let Some(door) = view
+                            .door
+                            .as_mut()
+                            .filter(|door| door.stage != DoorStage::Asking)
+                        else {
+                            return;
                         };
-                        if let (Some(stage), Some(door)) = (stage, &mut view.door) {
-                            door.stage = stage;
-                        }
+                        door.stage = match standing {
+                            Some(Standing::TurnedAway) => DoorStage::TurnedAway,
+                            Some(Standing::RanOut) => DoorStage::NoAnswer,
+                            // a read from before the knock landed said
+                            // otherwise: it waits, the view's minute not out
+                            Some(Standing::Waiting) if now < door.since + KNOCK_SECONDS => {
+                                DoorStage::Waiting
+                            }
+                            _ => door.stage,
+                        };
                     }
                 }
                 cx.notify();
