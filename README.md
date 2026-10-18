@@ -331,6 +331,13 @@ make shots APP=/path/to/app   # the view's frames, painted by the app's real ren
 make live QA=/path/to/qa      # the programs in the real app, on a stage of qa's kit ("A view on its own", 3)
 ```
 
+Every wasm target builds the release profile into
+`target/wasm32-unknown-unknown/release/`, the bytes main and duckpond
+take. `WASM_PROFILE=fast` on the command line (`make wasm-views
+WASM_PROFILE=fast`, never the environment) builds the `fast` profile
+(`Cargo.toml`: no fat LTO, sixteen codegen units, no wasm-opt) into
+`target/wasm32-unknown-unknown/fast/`, the bytes dev and garage take.
+
 `make wasm-views` needs Binaryen `wasm-opt` 132 and `wasm-tools`, as modules
 does. `make shots` needs an app checkout at the rev that pins the same SDK
 line, and a debug build of it (`APP_TARGET`, its target directory); the

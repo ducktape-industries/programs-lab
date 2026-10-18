@@ -82,6 +82,16 @@ opt-level = 3
 [profile.release.package.gpui-pre]
 opt-level = 3
 
+# `WASM_PROFILE=fast` (dev and garage): the release profile without what
+# makes a release slow to build, one fat-LTO link of one codegen unit per
+# artifact; the view gate skips wasm-opt for it too. The opt-levels above
+# stay, so a view's fuel stays close to what ships. Its own output dir; main
+# and duckpond take the release profile's bytes.
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+
 # The patches modules' root carries: the fork's MessagePack and scheduler
 # crates. A dependency's `[patch]` does not reach its dependents, so they are
 # repeated here, at the same rev.
