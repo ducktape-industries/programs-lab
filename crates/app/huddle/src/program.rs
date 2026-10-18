@@ -4,7 +4,7 @@
 use ::program::{Error, ExecCtx, Program, QueryCtx};
 
 use crate::queries;
-use crate::rules::{decline, end, invite, join, leave, start};
+use crate::rules::{admit, decline, end, invite, join, knock, leave, start, turn_away};
 use crate::{Op, PROGRAM, Query, Reply, seconds};
 
 pub struct Huddle;
@@ -26,6 +26,9 @@ impl Program for Huddle {
             Op::Leave { call } => leave(ctx, me, call, now),
             Op::Decline { call } => decline(ctx, me, call),
             Op::End { call } => end(ctx, me, call, now),
+            Op::Knock { call } => knock(ctx, me, call, now),
+            Op::Admit { call, account } => admit(ctx, me, call, account, now),
+            Op::TurnAway { call, account } => turn_away(ctx, me, call, account),
         }
     }
 
@@ -35,6 +38,8 @@ impl Program for Huddle {
             Query::Call { id } => Reply::Call(queries::call(ctx, &id)?),
             Query::Mine { account } => Reply::Calls(queries::mine(ctx, account, now)?),
             Query::Ringing { account } => Reply::Calls(queries::ringing(ctx, account, now)?),
+            Query::Knocks { call } => Reply::Knocks(queries::knocks_at(ctx, &call, now)?),
+            Query::Doors { account } => Reply::Doors(queries::doors(ctx, account, now)?),
         })
     }
 }

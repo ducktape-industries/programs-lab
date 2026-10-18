@@ -8,10 +8,15 @@
 //! the camera, the flip, the Sound route and Leave. The view stays where
 //! it is (a phone keeps one window): no pin, no float.
 //!
-//! Reads the picks and switches, what the pieces told, the call's people
-//! and the room's clock. Writes the toggles, the flip, a retry or the
-//! system's settings for a device in trouble, the sound and invite sheets'
-//! opening and the check (`leave_room`).
+//! Beside Invite in the title row: Start a call with no call, Copy link in
+//! one. The knocks at the door are a strip over the stage, each with Let in
+//! and Turn away.
+//!
+//! Reads the picks and switches, what the pieces told, the call's people,
+//! its door and the room's clock. Writes the toggles, the flip, a retry or
+//! the system's settings for a device in trouble, the sound and invite
+//! sheets' opening, a call's start, its link, a knock's answer and the
+//! check (`leave_room`).
 use view::design::{IconButton, Ladder};
 use view::prelude::*;
 use view::{Div, FontWeight, Stateful};
@@ -23,8 +28,11 @@ use crate::people;
 use crate::words::{self, Device};
 use crate::{Huddle, Kind, Which};
 
-/// Invite's glyph, by the Lucide name `design::icon` draws.
+// the title row's glyphs, by the Lucide names `design::icon` draws
 const INVITE: &str = "user-plus";
+const START: &str = "phone";
+const LINK: &str = "link";
+const COPIED: &str = "check";
 
 /// Your face while the camera is off (SPEC §2.1), and in your thumbnail.
 const FACE: Pixels = px(72.);
@@ -53,8 +61,10 @@ pub(super) fn screen(
         theme,
     )
     .caption(words::in_room(&view.clock(), view.people_here()))
+    .trailing(link_or_start(view, cx, ladder, theme))
     .trailing(invite(cx, ladder, theme))
     .children(people::voices(view, cx))
+    .children(knocks(view, cx, ladder, theme))
     .child(stage(view, cx, ladder, theme))
     .child(bar(view, cx, ladder, theme))
 }
@@ -72,6 +82,109 @@ fn invite(cx: &mut Context<Huddle>, ladder: &Ladder, theme: &Theme) -> impl Into
         ladder,
         theme,
         open,
+    )
+}
+
+/// Beside Invite: Start a call with no call (one with no one rung, whose
+/// link brings people to its door); Copy link in one, its glyph a check
+/// for a while once copied.
+fn link_or_start(
+    view: &Huddle,
+    cx: &mut Context<Huddle>,
+    ladder: &Ladder,
+    theme: &Theme,
+) -> impl IntoElement {
+    let (id, glyph, name) = match (view.call.is_some(), view.just_copied()) {
+        (false, _) => ("huddle-start", START, words::START_CALL),
+        (true, false) => ("huddle-copy-link", LINK, words::COPY_LINK),
+        (true, true) => ("huddle-copy-link", COPIED, words::LINK_COPIED),
+    };
+    let press = cx.listener(
+        |view: &mut Huddle, _: &ClickEvent, _, cx| match view.call.is_some() {
+            true => view.copy_link(cx),
+            false => view.start_alone(cx),
+        },
+    );
+    design::icon_button(
+        id,
+        design::icon(glyph, ladder.icon),
+        name,
+        ladder,
+        theme,
+        press,
+    )
+}
+
+/// The knocks at the door, a strip over the stage: each one's face and
+/// name, Let in and Turn away.
+fn knocks(
+    view: &Huddle,
+    cx: &mut Context<Huddle>,
+    ladder: &Ladder,
+    theme: &Theme,
+) -> Option<Stateful<Div>> {
+    let knocks = &view.call.as_ref()?.knocks;
+    if knocks.is_empty() {
+        return None;
+    }
+    let rows = knocks.iter().map(|who| {
+        let who = *who;
+        let name = view.name(who);
+        let admit =
+            cx.listener(move |view: &mut Huddle, _: &ClickEvent, _, cx| view.admit(who, cx));
+        let turn_away =
+            cx.listener(move |view: &mut Huddle, _: &ClickEvent, _, cx| view.turn_away(who, cx));
+        div()
+            .id(SharedString::from(format!("huddle-knock-{who}")))
+            .flex()
+            .items_center()
+            .gap(design::space::SM)
+            .px(design::space::BLOCK)
+            .py(design::space::SM)
+            .role(Role::Alert)
+            .aria_live(view::accesskit::Live::Polite)
+            .child(design::avatar(&name, ladder.avatar, theme))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_type(ladder.secondary)
+                    .font_weight(FontWeight::MEDIUM)
+                    .truncate()
+                    .child(words::asking_to_join(&name)),
+            )
+            .child(
+                design::button(
+                    format!("huddle-admit-{who}"),
+                    words::LET_IN,
+                    ladder,
+                    theme,
+                    admit,
+                )
+                .small()
+                .kind(design::Kind::Primary),
+            )
+            .child(
+                design::button(
+                    format!("huddle-turn-away-{who}"),
+                    words::TURN_AWAY,
+                    ladder,
+                    theme,
+                    turn_away,
+                )
+                .small(),
+            )
+    });
+    Some(
+        div()
+            .id("huddle-knocks")
+            .flex_none()
+            .flex()
+            .flex_col()
+            .border_b_1()
+            .border_color(theme.border)
+            .bg(theme.surface)
+            .children(rows),
     )
 }
 

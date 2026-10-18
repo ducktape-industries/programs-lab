@@ -10,12 +10,16 @@
 //!
 //! A call is a room of the `huddle` program (`call.rs`): Invite in a room
 //! with no call starts one, ringing whoever was picked, and in a call rings
-//! them into it. Your camera and microphone publish into your own tracks
-//! of its room; each other person is heard through a voice the view places
-//! for them, and seen through a picture on the stage. Answer, or a link to
-//! the call (`call/<id>`), joins at once; a link to its leave
-//! (`call/<id>/leave`, what a phone opens when the call is ended from the
-//! system's call screen) leaves it.
+//! them into it; Start a call starts one with no one rung, whose link
+//! (Copy link) brings people to its door. Your camera and microphone
+//! publish into your own tracks of its room; each other person is heard
+//! through a voice the view places for them, and seen through a picture on
+//! the stage. Answer, or a link to the call (`call/<id>`), joins at once;
+//! the same link opened by someone not asked in is the door (`ui::door`):
+//! they ask to join, and the people in the call see the knock and let them
+//! in or turn them away. A link to its leave (`call/<id>/leave`, what a
+//! phone opens when the call is ended from the system's call screen)
+//! leaves it.
 //!
 //! Join floats the room in the same press (`host.float`): the pane leaves
 //! the desk into a small window of its own, kept above other apps' windows,
@@ -55,7 +59,7 @@ use serde::{Deserialize, Serialize};
 use view::prelude::*;
 
 #[cfg(not(feature = "notifier"))]
-use crate::call::Call;
+use crate::call::{AtTheDoor, Call};
 #[cfg(not(feature = "notifier"))]
 use crate::words::Device;
 
@@ -98,6 +102,17 @@ pub(crate) enum Screen {
     #[default]
     Check,
     Room,
+}
+
+/// Where someone at a call's door stands: about to ask, waiting for an
+/// answer, turned away, or unanswered.
+#[cfg_attr(feature = "notifier", allow(dead_code))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DoorStage {
+    Asking,
+    Waiting,
+    TurnedAway,
+    NoAnswer,
 }
 
 /// What a pick picks: a camera, a microphone or a speaker, or a person to
@@ -220,6 +235,17 @@ pub struct Huddle {
     /// The call the room is in.
     #[serde(skip)]
     pub(crate) call: Option<Call>,
+    /// The call you stand at the door of: a link to a call you were not
+    /// asked into.
+    #[serde(skip)]
+    pub(crate) door: Option<AtTheDoor>,
+    /// The call whose link was opened, read before it is answered.
+    #[serde(skip)]
+    pub(crate) arriving: Option<String>,
+    /// When the call's link was last copied, by the view's clock: Copy
+    /// link says so for [`call::NOTE_SECONDS`].
+    #[serde(skip)]
+    pub(crate) copied: Option<u64>,
     /// The calls ringing you, as the program lists them: the rings shown
     /// on the check.
     #[serde(skip)]
@@ -280,7 +306,7 @@ impl View for Huddle {
     // refused device opens, and the log a refusal nothing waits on goes
     // to; `program` and `op`: the calls, and the ops that start, join and
     // leave them; `live`: the call's tracks, and the pieces that publish
-    // and play them
+    // and play them; `clipboard`: Copy link
     const CAPABILITIES: &'static [Capability] = &[
         Capability::Camera,
         Capability::Microphone,
@@ -289,6 +315,7 @@ impl View for Huddle {
         Capability::Program,
         Capability::Op,
         Capability::Live,
+        Capability::Clipboard,
     ];
     /// The calls, and the names of the people in them.
     const TARGETS: &'static [&'static str] = &[huddle::PROGRAM, identity::PROGRAM];

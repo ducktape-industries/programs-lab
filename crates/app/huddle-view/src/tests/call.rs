@@ -390,18 +390,14 @@ fn an_end_link_leaves_its_call_and_no_other() {
     line.cx.run_until_parked();
     assert_eq!(line.sent.borrow().len(), sent);
 
-    // answered and ended in one go: in, then out
+    // answered and ended in one go: the end finds the answer still reading
+    // the call, and calls it off; nothing is joined to be left
     line.route.send(format!("call/{ADAS}"));
     line.route.send(format!("call/{ADAS}/leave"));
     line.cx.run_until_parked();
-    assert_eq!(
-        line.sent.borrow()[sent..],
-        [
-            Op::Join { call: ADAS.into() },
-            Op::Leave { call: ADAS.into() }
-        ]
-    );
+    assert_eq!(line.sent.borrow().len(), sent, "{:?}", line.sent.borrow());
     assert!(line.cx.find("huddle-join").is_some(), "on the check");
+    assert_eq!(line.pieces().microphone, Some((None, false)), "no hot mic");
 }
 
 /// Invite in a room with no call starts one, ringing whoever was picked,
@@ -761,7 +757,8 @@ fn a_ring_that_ran_out_is_no_card() {
 }
 
 /// On a phone, a call that cannot go on says why in the room: here a link
-/// to a call its caller already ended, whose Join is refused.
+/// to a call that is over (its ring and its wait for knocks ran out), whose
+/// Join is refused.
 #[test]
 fn on_a_phone_the_room_says_why_a_call_did_not_go_on() {
     let mut line = line(true);
@@ -772,7 +769,7 @@ fn on_a_phone_the_room_says_why_a_call_did_not_go_on() {
             invited: vec![ME],
         },
     );
-    line.block(ADA, Op::End { call: ADAS.into() });
+    line.now.set(1_000 + huddle::WAIT_SECONDS);
     line.route.send(format!("call/{ADAS}"));
     line.cx.run_until_parked();
     assert!(line.cx.find("huddle-leave").is_some(), "in the room");
@@ -786,6 +783,29 @@ fn on_a_phone_the_room_says_why_a_call_did_not_go_on() {
         "{:?}",
         line.cx.texts()
     );
+}
+
+/// A link to a call its caller ended, or to no call, says so on the check
+/// and joins nothing.
+#[test]
+fn a_link_to_an_ended_or_unknown_call_says_so_on_the_check() {
+    let mut line = line(false);
+    line.block(
+        ADA,
+        Op::Start {
+            call: ADAS.into(),
+            invited: vec![ME],
+        },
+    );
+    line.block(ADA, Op::End { call: ADAS.into() });
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    assert!(line.cx.find("huddle-join").is_some(), "on the check");
+    assert!(line.cx.has_text("The call ended."), "{:?}", line.cx.texts());
+    line.route.send("call/nowhere".into());
+    line.cx.run_until_parked();
+    assert!(line.cx.has_text("There is no such call."));
+    assert!(line.sent.borrow().is_empty(), "{:?}", line.sent.borrow());
 }
 
 /// The node ends the room's track list under you: out of the room, the
@@ -872,7 +892,7 @@ fn a_note_in_the_room_gives_way_to_reconnecting_and_goes() {
             invited: vec![ME],
         },
     );
-    line.block(ADA, Op::End { call: ADAS.into() });
+    line.now.set(1_000 + huddle::WAIT_SECONDS);
     line.route.send(format!("call/{ADAS}"));
     line.cx.run_until_parked();
     let note = "The call did not go through: call call-ada is over";
@@ -925,4 +945,335 @@ fn a_camera_heard_before_its_microphone_still_shows() {
     settle(&mut [&mut me, &mut ada]);
     assert_eq!(me.pieces().voices, ["mic/2"]);
     assert_eq!(me.pieces().pictures, ["cam/2"], "her picture");
+}
+
+// ---------- the door ----------
+
+/// Ada's call, started alone: no one rung, its link is the way in.
+fn adas_alone(line: &mut Line) {
+    line.block(
+        ADA,
+        Op::Start {
+            call: ADAS.into(),
+            invited: vec![],
+        },
+    );
+}
+
+/// A link to a call you were not asked into is the door: the caller named,
+/// Ask to join knocks and waits; let in, you join at once, floated as an
+/// answer is.
+#[test]
+fn a_link_to_a_call_you_were_not_asked_into_is_the_door() {
+    let mut line = line(false);
+    adas_alone(&mut line);
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    assert!(
+        line.cx.find("huddle-door").is_some(),
+        "{:?}",
+        line.cx.texts()
+    );
+    assert!(line.cx.has_text("ada is in a call"));
+    assert!(line.sent.borrow().is_empty(), "nothing sent before the ask");
+    assert_eq!(line.pieces().microphone, None, "no piece at the door");
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().as_slice(),
+        [Op::Knock { call: ADAS.into() }]
+    );
+    assert!(
+        line.cx
+            .has_text("Waiting for someone to let you in\u{2026}")
+    );
+    assert!(line.cx.find("huddle-ask").is_none(), "one knock at a time");
+    line.block(
+        ADA,
+        Op::Admit {
+            call: ADAS.into(),
+            account: ME,
+        },
+    );
+    assert_eq!(line.joins(), 1, "{:?}", line.sent.borrow());
+    assert!(line.cx.find("huddle-bar").is_some(), "in the room");
+    assert!(line.cx.find("huddle-door").is_none());
+    assert_eq!(
+        line.pieces().microphone,
+        Some((track(ADAS, "mic/1".into()), false))
+    );
+}
+
+/// Turned away, the door says so and Ask again knocks again; unanswered a
+/// minute by the view's clock, it says no one answered; Back is the check.
+#[test]
+fn turned_away_or_unanswered_the_door_says_so_and_asks_again() {
+    let mut line = line(false);
+    adas_alone(&mut line);
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    line.block(
+        ADA,
+        Op::TurnAway {
+            call: ADAS.into(),
+            account: ME,
+        },
+    );
+    assert!(
+        line.cx.has_text("You were not let in."),
+        "{:?}",
+        line.cx.texts()
+    );
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().as_slice(),
+        [
+            Op::Knock { call: ADAS.into() },
+            Op::Knock { call: ADAS.into() },
+        ]
+    );
+    assert!(
+        line.cx
+            .has_text("Waiting for someone to let you in\u{2026}")
+    );
+    for _ in 0..huddle::KNOCK_SECONDS {
+        line.second();
+    }
+    assert!(
+        line.cx.has_text("No one answered."),
+        "{:?}",
+        line.cx.texts()
+    );
+    line.cx.simulate_click("huddle-door-leave");
+    line.cx.run_until_parked();
+    assert!(line.cx.find("huddle-join").is_some(), "on the check");
+    assert_eq!(
+        line.sent.borrow().len(),
+        2,
+        "a knock run out is not withdrawn"
+    );
+}
+
+/// Cancel while waiting withdraws the knock (Leave); Not now before asking
+/// sends nothing.
+#[test]
+fn cancel_withdraws_the_knock_and_not_now_sends_nothing() {
+    let mut line = line(false);
+    adas_alone(&mut line);
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-door-leave");
+    line.cx.run_until_parked();
+    assert!(line.cx.find("huddle-join").is_some(), "on the check");
+    assert!(line.sent.borrow().is_empty());
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-door-leave");
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().as_slice(),
+        [
+            Op::Knock { call: ADAS.into() },
+            Op::Leave { call: ADAS.into() },
+        ]
+    );
+    assert!(line.cx.find("huddle-join").is_some(), "on the check");
+}
+
+/// Start a call in a room with no call starts one with no one rung; the
+/// knocks at its door are cards over the stage, Let in admits, Turn away
+/// turns away, and a knock that ran out goes with the next read.
+#[test]
+fn start_a_call_alone_and_answer_the_knocks_at_its_door() {
+    let mut line = line(false);
+    line.cx.simulate_click("huddle-join");
+    line.cx.run_until_parked();
+    assert!(line.cx.has_text("Start a call"), "{:?}", line.cx.texts());
+    assert!(!line.cx.has_text("Copy link"), "no call to link yet");
+    line.cx.simulate_click("huddle-start");
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().as_slice(),
+        [Op::Start {
+            call: MINTED.into(),
+            invited: vec![],
+        }]
+    );
+    assert!(line.cx.has_text("Copy link"));
+    assert!(!line.cx.has_text("Start a call"));
+    assert_eq!(
+        line.pieces().microphone,
+        Some((track(MINTED, "mic/1".into()), false))
+    );
+    line.block(
+        BO,
+        Op::Knock {
+            call: MINTED.into(),
+        },
+    );
+    line.block(
+        ADA,
+        Op::Knock {
+            call: MINTED.into(),
+        },
+    );
+    assert!(
+        line.cx.has_text("bo is asking to join"),
+        "{:?}",
+        line.cx.texts()
+    );
+    assert!(line.cx.has_text("ada is asking to join"));
+    line.cx.simulate_click(&format!("huddle-admit-{BO}"));
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().last(),
+        Some(&Op::Admit {
+            call: MINTED.into(),
+            account: BO,
+        })
+    );
+    assert!(!line.cx.has_text("bo is asking to join"), "answered");
+    line.cx.simulate_click(&format!("huddle-turn-away-{ADA}"));
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().last(),
+        Some(&Op::TurnAway {
+            call: MINTED.into(),
+            account: ADA,
+        })
+    );
+    assert!(
+        line.cx.find("huddle-knocks").is_none(),
+        "{:?}",
+        line.cx.texts()
+    );
+    // a third knock runs out by the chain's clock: the next read drops it
+    line.block(
+        5,
+        Op::Knock {
+            call: MINTED.into(),
+        },
+    );
+    assert!(line.cx.has_text("account 5 is asking to join"));
+    line.now.set(1_000 + huddle::KNOCK_SECONDS);
+    for _ in 0..5 {
+        line.second();
+    }
+    assert!(
+        line.cx.find("huddle-knocks").is_none(),
+        "{:?}",
+        line.cx.texts()
+    );
+}
+
+/// Copy link puts the call's link on the clipboard and says so for a
+/// while.
+#[test]
+fn copy_link_puts_the_calls_link_on_the_clipboard() {
+    let mut line = line(false);
+    let copied = Rc::new(RefCell::new(String::new()));
+    let seen = copied.clone();
+    line.cx
+        .host()
+        .handle::<view::methods::ClipboardWrite>(move |text| {
+            *seen.borrow_mut() = text;
+            Ok(())
+        });
+    line.cx.simulate_click("huddle-join");
+    line.cx.simulate_click("huddle-start");
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-copy-link");
+    line.cx.run_until_parked();
+    assert_eq!(
+        *copied.borrow(),
+        format!("duck://lab-0a1b2c3d/huddle/call/{MINTED}")
+    );
+    assert!(line.cx.has_text("Link copied"), "{:?}", line.cx.texts());
+    for _ in 0..5 {
+        line.second();
+    }
+    assert!(line.cx.has_text("Copy link"));
+}
+
+/// On a phone the door is the whole screen, and the room's knocks a strip
+/// over the stage, with Start a call and Copy link in the title row.
+#[test]
+fn on_a_phone_the_door_is_the_whole_screen_and_knocks_a_strip() {
+    let mut line = line(true);
+    adas_alone(&mut line);
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    assert!(
+        line.cx.find("huddle-door").is_some(),
+        "{:?}",
+        line.cx.texts()
+    );
+    assert!(line.cx.has_text("ada is in a call"));
+    assert!(
+        line.cx.find("huddle-join").is_none(),
+        "the check is under it"
+    );
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    assert!(
+        line.cx
+            .has_text("Waiting for someone to let you in\u{2026}")
+    );
+    line.block(
+        ADA,
+        Op::Admit {
+            call: ADAS.into(),
+            account: ME,
+        },
+    );
+    assert_eq!(line.joins(), 1);
+    assert!(line.cx.find("huddle-leave").is_some(), "in the room");
+    assert_eq!(
+        line.cx
+            .interactivity("huddle-copy-link")
+            .aria
+            .label
+            .as_deref(),
+        Some("Copy link")
+    );
+    // a knock at this call's door, which Ada started and I am now in
+    line.block(BO, Op::Knock { call: ADAS.into() });
+    assert!(
+        line.cx.has_text("bo is asking to join"),
+        "{:?}",
+        line.cx.texts()
+    );
+    line.cx.simulate_click(&format!("huddle-admit-{BO}"));
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().last(),
+        Some(&Op::Admit {
+            call: ADAS.into(),
+            account: BO,
+        })
+    );
+    assert!(line.cx.find("huddle-knocks").is_none());
+    // out, and a call started alone from the title row
+    line.cx.simulate_click("huddle-leave");
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-join");
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.cx.interactivity("huddle-start").aria.label.as_deref(),
+        Some("Start a call")
+    );
+    line.cx.simulate_click("huddle-start");
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().last(),
+        Some(&Op::Start {
+            call: MINTED.into(),
+            invited: vec![],
+        })
+    );
 }

@@ -4,7 +4,7 @@
 //! words). A sentence only the desktop says stays in its tree.
 use view::prelude::*;
 
-use crate::{Kind, RECORD_SECONDS, Which};
+use crate::{DoorStage, Kind, RECORD_SECONDS, Which};
 
 /// Which piece a trouble line speaks of.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,6 +139,52 @@ pub(crate) const INVITE_PEOPLE: &str = "Invite people";
 
 /// The invite list with no one in it.
 pub(crate) const NO_ONE_TO_INVITE: &str = "No one else on this network yet";
+
+/// Start a call with no one rung: its link is what brings people in.
+pub(crate) const START_CALL: &str = "Start a call";
+
+/// The call's link onto the clipboard, and the control's word once it is.
+pub(crate) const COPY_LINK: &str = "Copy link";
+pub(crate) const LINK_COPIED: &str = "Link copied";
+
+// ---------- the door ----------
+
+/// A knock, as the room and the notice say it.
+pub(crate) fn asking_to_join(who: &str) -> String {
+    format!("{who} is asking to join")
+}
+
+/// A knock's answers.
+pub(crate) const LET_IN: &str = "Let in";
+pub(crate) const TURN_AWAY: &str = "Turn away";
+
+/// What the knocker's screen says at each stage: a title and the line
+/// under it.
+pub(crate) fn at_the_door(stage: DoorStage, caller: &str) -> (String, &'static str) {
+    match stage {
+        DoorStage::Asking => (
+            format!("{caller} is in a call"),
+            "You were not asked in. Ask to join, and someone in the call can let you in.",
+        ),
+        DoorStage::Waiting => (
+            "Waiting for someone to let you in\u{2026}".into(),
+            "The people in the call see you asking.",
+        ),
+        DoorStage::TurnedAway => ("You were not let in.".into(), ""),
+        DoorStage::NoAnswer => ("No one answered.".into(), "Ask again, or come back later."),
+    }
+}
+
+/// The knocker's controls: the ask, its cancel, asking again, and back to
+/// the check.
+pub(crate) const ASK_TO_JOIN: &str = "Ask to join";
+pub(crate) const NOT_NOW: &str = "Not now";
+pub(crate) const CANCEL: &str = "Cancel";
+pub(crate) const ASK_AGAIN: &str = "Ask again";
+pub(crate) const BACK: &str = "Back";
+
+/// A link to a call there is none of.
+pub(crate) const NO_SUCH_CALL: &str = "There is no such call.";
 
 /// The network row: the call's tracks are not through.
 pub(crate) const RECONNECTING: &str = "Reconnecting\u{2026}";
