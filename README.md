@@ -327,6 +327,8 @@ make wasm-programs    # each program for wasm32
 make wasm-describes   # each program's describe module, ABI-checked
 make wasm-views       # each view's wasm, optimized and ABI-checked by modules' own gate
 make wasm-notifiers   # each notifier's wasm (a view built with `notifier`), gated as one
+make wasm-packed      # all four, then each program packed with its view, describe module and notifier
+make dl-stage CHANNEL=main   # the bodies, manifest and upload order of a publish ("Published")
 make shots APP=/path/to/app   # the view's frames, painted by the app's real renderer
 make live QA=/path/to/qa      # the programs in the real app, on a stage of qa's kit ("A view on its own", 3)
 ```
@@ -342,6 +344,46 @@ WASM_PROFILE=fast`, never the environment) builds the `fast` profile
 does. `make shots` needs an app checkout at the rev that pins the same SDK
 line, and a debug build of it (`APP_TARGET`, its target directory); the
 app's `dev/screens/README.md` lists what the capture needs.
+
+## Published
+
+Each push to `main` publishes the bodies a network installs to
+https://dl.ducktape.industries/programs-lab/main/, built with the release
+profile (`.github/workflows/release.yml`, `make dl-stage`,
+`tools/publish-dl.py`), the same way programs publishes its own under
+`programs/`. A push to `dev` would publish the fast profile's bytes under
+`programs-lab/dev/`; the lab has no `dev` branch, and garage builds its
+fast bodies when it deploys. The bodies are `<program>.wasm`, each program
+packed with its view, describe module and notifier (`make wasm-packed`,
+as `make live` founds a stage with them), and `browser_view.wasm`, the
+view with no program.
+
+The version of a publish is the commit's first-parent count
+(`git rev-list --count --first-parent HEAD`), shown as `main-<N>`:
+
+- `programs-lab/main/latest.json` is the newest version's manifest (it
+  lives a minute in a cache, and never moves back to an older version).
+- `programs-lab/main/<N>/manifest.json` is that version's: `repo`,
+  `channel`, `version`, `display`, `commit`, `profile`, `built_at` (the
+  commit's time), `wire_id` (the one every view and notifier speaks),
+  `programs_rev` (the SDK line, `Cargo.toml`'s), and `artifacts`, each
+  body's `sha256` and `bytes`.
+- `programs-lab/main/<N>/<body>` is the body. Nothing under `<N>/` ever
+  changes: a rerun skips what is there with the same sha256 and stops on a
+  different one.
+
+```sh
+curl -s https://dl.ducktape.industries/programs-lab/main/latest.json
+curl -sO https://dl.ducktape.industries/programs-lab/main/<N>/trade.wasm && sha256sum trade.wasm
+```
+
+A body is checked by the sha256 its manifest names, read over HTTPS;
+nothing is signed yet, since no consumer checks a signature.
+`make dl-stage CHANNEL=main` builds, stages each body and the manifest in
+`target/dl/main/` and prints the upload order, with no credentials: the
+dry run of a publish, and the stage the workflow's upload job uploads;
+`make dl-publish-check` runs the publisher against a scratch repository
+and a stand-in for the bucket.
 
 ## A view on its own
 

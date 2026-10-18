@@ -1,0 +1,85 @@
+# The job `build` builds the bodies of each commit `dev` and `main` move to, and the job
+# `upload` publishes them at https://dl.ducktape.industries/programs-lab/<channel>/
+# (tools/publish-dl.py: the version is the commit's first-parent count), as programs
+# publishes its own under programs/:
+# - dev: the fast profile's bytes. The lab has no dev branch (owner, 10-18: the lab stays
+#   on main); the trigger keeps programs' branch policy.
+# - main: the release profile's bytes.
+# A newer push to a branch cancels the run of an older one; its version stays unused.
+# Both jobs run on GitHub's ubuntu-latest: fabrics-1, programs' reference host, is no runner
+# of this repository, and ubuntu-latest is the same host triple (x86_64-unknown-linux-gnu);
+# the bytes depend on the triple, not the machine. `build` stages each body and the
+# manifest (`make dl-stage`) and hands them to `upload` as an artifact. `upload` is the only
+# job that reads the bucket's secrets: the repository's R2_ACCOUNT_ID and R2_BUCKET, and the
+# organization's R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY.
+name: release
+
+on:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CHANNEL: ${{ github.ref_name }}
+      # the profile each channel publishes; tools/publish-dl.py refuses any other
+      PROFILE: ${{ github.ref_name == 'main' && 'release' || 'fast' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the version counts the whole first-parent history
+      # the toolchain rust-toolchain.toml names, with wasm32-unknown-unknown
+      - run: rustup show
+      # the view gate optimizes with Binaryen wasm-opt 132 exactly and reads the ABI with
+      # wasm-tools; each archive is checked against its sha256 before it is unpacked
+      - run: |
+          cd "$RUNNER_TEMP"
+          curl -sSfLO https://github.com/WebAssembly/binaryen/releases/download/version_132/binaryen-version_132-x86_64-linux.tar.gz
+          curl -sSfLO https://github.com/bytecodealliance/wasm-tools/releases/download/v1.253.0/wasm-tools-1.253.0-x86_64-linux.tar.gz
+          sha256sum -c <<'EOF'
+          195ddc94f9bc89f45abdabb0b9eea86023d727ba90eac8b35b80f2544fc30572  binaryen-version_132-x86_64-linux.tar.gz
+          4e2898f7ca3bd0536218ed9b7b36ff7b86954c57ae0e6272fde69728cbe01088  wasm-tools-1.253.0-x86_64-linux.tar.gz
+          EOF
+          tar xzf binaryen-version_132-x86_64-linux.tar.gz
+          tar xzf wasm-tools-1.253.0-x86_64-linux.tar.gz
+          echo "$RUNNER_TEMP/binaryen-version_132/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/wasm-tools-1.253.0-x86_64-linux" >> "$GITHUB_PATH"
+      - run: make dl-publish-check
+      - run: make dl-stage CHANNEL="$CHANNEL" WASM_PROFILE="$PROFILE" DL_OUT="$RUNNER_TEMP/dl" CARGO="cargo --locked"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dl
+          path: ${{ runner.temp }}/dl
+          if-no-files-found: error
+          retention-days: 7
+
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # tools/publish-dl.py at the built commit
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dl
+          path: stage
+      - run: python3 tools/publish-dl.py upload stage
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto

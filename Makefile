@@ -60,7 +60,7 @@ APP_REF ?= dev
 CORE_REF ?=
 LIVE = PROGRAMS="$(PROGRAMS)" QA="$(QA)" KIT="$(KIT)" STAGE="$(STAGE)" APP_REF="$(APP_REF)" CORE_REF="$(CORE_REF)" OUT="$(BUILD_TARGET)/live" WASM_OUT="$(WASM_OUT)" MAKE="$(MAKE)" sh live/live.sh
 
-.PHONY: test wasm-programs wasm-describes wasm-views wasm-notifiers wasm-packed shots live live-down bot
+.PHONY: test wasm-programs wasm-describes wasm-views wasm-notifiers wasm-packed dl-stage dl-publish-check shots live live-down bot
 
 ## fmt, clippy and the native tests: each view on a fake host.
 test:
@@ -105,13 +105,39 @@ PACK = $(CARGO) run -q -p pack --
 ## it has one, each a custom section, by programs' own packer
 ## (`crates/tools/pack`); and copies each bare view beside them as it is.
 ## These are the bodies a network votes in: `make live` founds a stage with
-## them.
+## them and `make dl-stage` stages them for dl.ducktape.industries.
 wasm-packed: wasm-programs wasm-describes wasm-views wasm-notifiers
 	@rm -rf $(PACKED) && mkdir -p $(PACKED)
 	@$(foreach p,$(subst -,_,$(PROGRAMS)),$(PACK) ducktape.view $(WASM_OUT)/$(p).wasm $(WASM_OUT)/$(p)_view.wasm $(PACKED)/$(p).wasm && $(PACK) ducktape.describe $(PACKED)/$(p).wasm $(WASM_OUT)/$(p).describe.wasm $(PACKED)/$(p).wasm || exit 1;)
 	@$(foreach p,$(subst -,_,$(NOTIFIERS)),$(PACK) ducktape.notify $(PACKED)/$(p).wasm $(WASM_OUT)/$(p).notify.wasm $(PACKED)/$(p).wasm || exit 1;)
 	@cp $(foreach v,$(BARE_VIEWS),$(WASM_OUT)/$(subst -,_,$(v)).wasm) $(PACKED)/
 	@cd $(PACKED) && ls -l $(notdir $(BODIES))
+
+# `make dl-stage` without a channel stops here, before its build
+ifneq ($(filter dl-stage,$(MAKECMDGOALS)),)
+ifeq ($(filter dev main,$(CHANNEL)),)
+$(error usage: make dl-stage CHANNEL=dev|main [WASM_PROFILE=fast] [DL_OUT=dir])
+endif
+endif
+
+# Where dl-stage writes the stage.
+DL_OUT = $(BUILD_TARGET)/dl/$(CHANNEL)
+
+## builds this commit's bodies and stages them for
+## https://dl.ducktape.industries/programs-lab/$(CHANNEL)/ (tools/publish-dl.py
+## stage), as programs stages its own: `make dl-stage CHANNEL=main` for the
+## release profile, `CHANNEL=dev WASM_PROFILE=fast` for the fast one.
+## $(DL_OUT) then holds each body and the manifest, and the upload order is
+## printed; this needs no credentials. The release workflow's upload job
+## uploads the stage (`tools/publish-dl.py upload`).
+dl-stage: wasm-packed
+	@python3 tools/publish-dl.py stage $(CHANNEL) $(WASM_PROFILE) $(DL_OUT) $(BODIES)
+
+## runs tools/publish-dl.py against a scratch repository and a stand-in for
+## `aws` (tools/publish-dl-check.py): the version, the manifest, the upload
+## order, and the refusal of a stage or a version's file with other bytes.
+dl-publish-check:
+	@python3 tools/publish-dl-check.py
 
 ## a view with no node: writes the frames trade-view draws and has the
 ## app's real renderer paint them into shots/*.png (Linux: Xvfb, xdotool,
