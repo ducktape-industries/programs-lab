@@ -15,7 +15,7 @@ arcade.workspace = true
 # the chain's id, as the app names a track's chain
 ducklink.workspace = true
 borsh.workspace = true
-# the live wire of core `dev` 89f3cf555, the rev programs a358ea23 pins:
+# the live wire of core `dev` 89f3cf555:
 # a hello names its key's scheme, and verifying is the node's
 live-wire = { git = "https://github.com/ducktape-industries/ducktape", rev = "89f3cf55570df68f7f66f9b31814dcc555673abb" }
 # `/v1/status` decodes into the node's own types (the workspace patches
