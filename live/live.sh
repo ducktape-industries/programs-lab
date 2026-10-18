@@ -79,7 +79,7 @@ pinned=$(git -C "$QA/.local/repos/app" show "$app:Cargo.toml" | pin /dev/stdin)
 and this workspace pins programs $sdk.
 The app refuses a view built on another SDK line: pass APP_REF=<a ref of the app that pins $sdk>."
 
-"$MAKE" wasm-programs wasm-describes wasm-views wasm-notifiers
+"$MAKE" wasm-packed
 cargo run -q -p trade-stage --bin history -- "$OUT/trade.params"
 cargo run -q -p trade-stage --bin seed -- "$OUT/trade.params" "$OUT/seed"
 
@@ -88,22 +88,11 @@ cargo run -q -p trade-stage --bin seed -- "$OUT/trade.params" "$OUT/seed"
 # none, so a stage made anew at other refs gets them here.
 "$KIT" build "$STAGE" --root "$QA"
 
-# Each program as a founding takes it: its view (<program>-view), then its describe
-# module, then its notifier where it has one (<program>.notify.wasm, `make
-# wasm-notifiers`), each a custom section, by programs' own packer (`crates/tools/pack`).
-pack() { cargo run -q -p pack -- "$@"; }
-for program in $PROGRAMS; do
-  name=$(echo "$program" | tr - _)
-  pack ducktape.view "$WASM_OUT/$name.wasm" "$WASM_OUT/${name}_view.wasm" "$dir/programs/$name.wasm"
-  pack ducktape.describe "$dir/programs/$name.wasm" "$WASM_OUT/$name.describe.wasm" "$dir/programs/$name.wasm"
-  if [ -f "$WASM_OUT/$name.notify.wasm" ]; then
-    pack ducktape.notify "$dir/programs/$name.wasm" "$WASM_OUT/$name.notify.wasm" "$dir/programs/$name.wasm"
-  fi
-done
+# Each program as a founding takes it, its view, describe module and notifier packed in,
+# and the browser's view as it is (it has no program: a `[[views]]` entry of
+# live/founding.toml): what `make wasm-packed` left in $WASM_OUT/packed.
+cp "$WASM_OUT"/packed/*.wasm "$dir/programs/"
 cp "$OUT/trade.params" "$dir/programs/trade.params"
-# The browser has no program: its view goes in as it is, a `[[views]]`
-# entry of live/founding.toml.
-cp "$WASM_OUT/browser_view.wasm" "$dir/programs/browser_view.wasm"
 # The lab's entries after the published ones; `up` fills each file name with its path
 # under programs/.
 cat live/founding.toml >>"$dir/programs/founding.toml"
