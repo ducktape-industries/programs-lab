@@ -137,7 +137,8 @@ impl Call {
     /// Whether the call is over at `now`: ended, or fewer than two people
     /// in it with no one being rung, no one knocking and its wait for
     /// knocks ([`WAIT_SECONDS`], which `waits_until` ends; `None` for a
-    /// call started before there were knocks) out. No one answered, or everyone else left: the
+    /// call started before there were knocks and not joined, left or
+    /// knocked at since) out. No one answered, or everyone else left: the
     /// program sees no track go down, so a call abandoned without a `Leave`
     /// is over by this rule, not by a write.
     pub fn over(&self, knocks: &[Knocker], waits_until: Option<u64>, now: u64) -> bool {

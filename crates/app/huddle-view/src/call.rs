@@ -267,10 +267,10 @@ impl Huddle {
     }
 
     /// At call `id` by its link: in the call already, nothing; asked in,
-    /// answered; not asked, at its door, out of any other call and on the
-    /// check; over or no such call, said on the check. The call is read
-    /// first, so an end link right behind ([`Huddle::leave_call`]) finds
-    /// the arrival on its way and calls it off.
+    /// answered; not asked, at its door, out of any other call or door and
+    /// on the check; over or no such call, said on the check. The call is
+    /// read first, so an end link right behind ([`Huddle::leave_call`])
+    /// finds the arrival on its way and calls it off.
     fn arrive(&mut self, id: String, touch: bool, cx: &mut Context<Self>) {
         if self.call.as_ref().is_some_and(|call| call.id == id) {
             return;

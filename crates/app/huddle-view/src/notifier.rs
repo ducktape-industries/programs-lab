@@ -26,7 +26,8 @@
 //! program keeps no record of who let them in), its body empty, its tag
 //! the call's door (`in/<call>`), its link the call (the view joins it at
 //! once), its `until` [`huddle::WAIT_SECONDS`] from being let in. It is
-//! withdrawn when they join, withdraw or decline, or the call is over.
+//! withdrawn when they join, withdraw or decline, the call is over, or its
+//! `until` passes.
 //! Turned away or run out, the knocker gets nothing: their open view says
 //! so.
 //!
@@ -59,8 +60,9 @@ fn rung_key(signer: &str) -> String {
     format!("rung/{signer}")
 }
 
-/// How often a ring or a knock out is checked, in milliseconds: a carrier
-/// also stops a ring at its `until`, so this only takes the notice down.
+/// How often a ring, a knock or a let in out is checked, in milliseconds:
+/// a carrier also stops a ring at its `until`, so this only takes the
+/// notice down.
 const CHECK_MS: i64 = 5_000;
 
 /// Huddle's notifier: who reads, what it posted, and the check that runs
@@ -190,7 +192,7 @@ impl HuddleNotices {
             }
             match postings {
                 Ok(postings) => notices.settle(postings, cx),
-                Err(refusal) => log_refused(cx, "what rings and knocks", &refusal),
+                Err(refusal) => log_refused(cx, "what stands", &refusal),
             }
         })
         .detach();
