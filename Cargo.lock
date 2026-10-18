@@ -3094,6 +3094,7 @@ dependencies = [
  "identity",
  "program",
  "serde",
+ "serde_json",
  "view",
 ]
 

@@ -145,12 +145,12 @@ fn knocks(
             .aria_live(view::accesskit::Live::Polite)
             .child(design::avatar(&name, ladder.avatar, theme))
             .child(
+                // wraps: a long name keeps its words
                 div()
                     .flex_1()
                     .min_w_0()
                     .text_type(ladder.secondary)
                     .font_weight(FontWeight::MEDIUM)
-                    .truncate()
                     .child(words::asking_to_join(&name)),
             )
             .child(

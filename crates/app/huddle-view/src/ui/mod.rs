@@ -973,9 +973,11 @@ fn stage(
         width - 2. * f(design::space::LG),
         height - f(BAR) - 2. * f(design::space::LG),
     );
-    let stage = stage.children(call::knocks(view, cx, theme));
+    // the knocks after the tiles: what comes later draws over them
     if others.is_empty() {
-        return stage.child(tile(view, Shown::Alone, inner.0, cx, theme));
+        return stage
+            .child(tile(view, Shown::Alone, inner.0, cx, theme))
+            .children(call::knocks(view, cx, theme));
     }
     let shown = call::shown(others.len());
     let (cols, rows) = call::grid(shown + 1, inner.0, inner.1);
@@ -1000,12 +1002,15 @@ fn stage(
                     .map(|tile| tile.w(px(tile_width)).h(px(tile_height))),
             )
         }));
-    stage.child(grid).children((others.len() > shown).then(|| {
-        people::more(others.len() - shown, &design::POINTER)
-            .absolute()
-            .right(design::space::LG + design::space::SM)
-            .bottom(design::space::LG + design::space::SM)
-    }))
+    stage
+        .child(grid)
+        .children((others.len() > shown).then(|| {
+            people::more(others.len() - shown, &design::POINTER)
+                .absolute()
+                .right(design::space::LG + design::space::SM)
+                .bottom(design::space::LG + design::space::SM)
+        }))
+        .children(call::knocks(view, cx, theme))
 }
 
 /// Where your tile is drawn: alone on the stage, one of a grid, or a
