@@ -632,6 +632,28 @@ fn let_in_lists_a_call_that_let_its_knocker_in() {
     assert_eq!(line.let_in(BO), Vec::<String>::new(), "the wait ran out");
 }
 
+/// A call that let a knocker in is theirs to open only while it stands:
+/// over by the rule before their ten minutes are out, it is not; kept by
+/// a Join, it is again; ended, it is not.
+#[test]
+fn let_in_lists_a_call_only_while_it_stands() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    line.now = 500;
+    line.knock(BO).expect("a knock");
+    line.now = 510;
+    line.admit(ADA, BO).expect("admitted");
+    line.now = 500 + WAIT_SECONDS - 1;
+    assert_eq!(line.let_in(BO), [CALL]);
+    line.now = 500 + WAIT_SECONDS;
+    assert!(line.over(), "nothing said for ten minutes from the knock");
+    assert_eq!(line.let_in(BO), Vec::<String>::new());
+    line.ok(ADA, Op::Join { call: CALL.into() });
+    assert_eq!(line.let_in(BO), [CALL], "kept");
+    line.ok(ADA, Op::End { call: CALL.into() });
+    assert_eq!(line.let_in(BO), Vec::<String>::new(), "ended");
+}
+
 /// A knock waits a minute for an answer, then runs out; knocked again, it
 /// waits anew. One who was asked in does not knock, nor does anyone at a
 /// call that has ended or never was.

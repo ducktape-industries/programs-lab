@@ -475,17 +475,19 @@ fn the_knocker_hears_only_that_they_were_let_in() {
     assert_eq!(posted[0].kind, NoticeKind::Call);
 }
 
-/// Let in is taken down when the knocker joins, withdraws or declines, or
-/// the wait from being let in runs out.
+/// Let in is taken down when the knocker joins, withdraws or declines, the
+/// call goes over, or the wait from being let in runs out.
 #[test]
-fn let_in_is_taken_down_when_joined_withdrawn_declined_or_run_out() {
-    for end in ["join", "withdraw", "decline", "time"] {
+fn let_in_is_taken_down_when_joined_withdrawn_declined_over_or_run_out() {
+    for end in ["join", "withdraw", "decline", "over", "time"] {
         let world = World::default();
         world.now.set(1_000);
         let mut knocker = world.knocker();
         world.block(&mut knocker, ADA, start(vec![]));
         let call = || "call-1".to_owned();
         world.block(&mut knocker, CY, Op::Knock { call: call() });
+        // let in a little after the knock: the call's wait runs out first
+        world.now.set(1_050);
         world.block(
             &mut knocker,
             ADA,
@@ -499,13 +501,19 @@ fn let_in_is_taken_down_when_joined_withdrawn_declined_or_run_out() {
             "join" => world.block(&mut knocker, CY, Op::Join { call: call() }),
             "withdraw" => world.block(&mut knocker, CY, Op::Leave { call: call() }),
             "decline" => world.block(&mut knocker, CY, Op::Decline { call: call() }),
-            _ => {
-                // Ada's view keeps the call waiting: the let in runs out alone
-                world.now.set(1_000 + huddle::WAIT_SECONDS - 1);
-                world.send(ADA, Op::Join { call: call() });
+            "over" => {
+                // no one keeps it: over ten minutes from the knock
                 world.tick(&mut knocker, 1_000 + huddle::WAIT_SECONDS - 1);
                 assert!(seen(&knocker).is_empty(), "{end}: still let in");
                 world.tick(&mut knocker, 1_000 + huddle::WAIT_SECONDS);
+            }
+            _ => {
+                // Ada's view keeps the call waiting: the let in runs out alone
+                world.now.set(1_050 + huddle::WAIT_SECONDS - 1);
+                world.send(ADA, Op::Join { call: call() });
+                world.tick(&mut knocker, 1_050 + huddle::WAIT_SECONDS - 1);
+                assert!(seen(&knocker).is_empty(), "{end}: still let in");
+                world.tick(&mut knocker, 1_050 + huddle::WAIT_SECONDS);
             }
         }
         assert_eq!(seen(&knocker), ["in/call-1"], "{end}");
