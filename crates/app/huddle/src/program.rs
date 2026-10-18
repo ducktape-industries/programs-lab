@@ -28,7 +28,7 @@ impl Program for Huddle {
             Op::End { call } => end(ctx, me, call, now),
             Op::Knock { call } => knock(ctx, me, call, now),
             Op::Admit { call, account } => admit(ctx, me, call, account, now),
-            Op::TurnAway { call, account } => turn_away(ctx, me, call, account),
+            Op::TurnAway { call, account } => turn_away(ctx, me, call, account, now),
         }
     }
 

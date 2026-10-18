@@ -4,14 +4,17 @@
 //! again, and Leave, Decline and End, which take people out, are refused
 //! only once it has ended, so a call that went over with no write can still
 //! be rung again by the one left in it, or closed. Admit and TurnAway
-//! answer a knock, so they are refused only once the call has ended too.
+//! answer a knock that waits, so they are refused once it ran out, and
+//! once the call has ended.
 use ::program::live::{grant, revoke};
 use ::program::{
     Error, ExecCtx, already_exists, capacity, invalid, not_found, unauthorized, wrong_state,
 };
 
 use crate::state::{CALLS, KNOCKS, MINE, WAITS};
-use crate::{Answer, Call, Invitee, Knock, Knocker, MAX_CALL_ID, MAX_PEOPLE, WAIT_SECONDS, seat};
+use crate::{
+    Answer, Call, Invitee, Knock, Knocker, MAX_CALL_ID, MAX_PEOPLE, Standing, WAIT_SECONDS, seat,
+};
 
 pub(crate) fn start(
     ctx: &ExecCtx,
@@ -88,10 +91,14 @@ pub(crate) fn leave(ctx: &ExecCtx, me: u64, id: String, now: u64) -> Result<(), 
     let mut call = open(ctx, &id)?;
     not_ended(&call, &id)?;
     if !call.joined.contains(&me) {
-        // not in it: a knocker withdraws their knock, anyone else has
-        // nothing to leave
-        if !KNOCKS.has(ctx, &(id.clone(), me)) {
+        // not in it: a knocker withdraws their knock, and one let in
+        // already says no as a Decline does, so nothing rings them;
+        // anyone else has nothing to leave
+        let Some(knock) = KNOCKS.get(ctx, &(id.clone(), me))? else {
             return Err(wrong_state(format!("you are not in call {id}")));
+        };
+        if knock.answer == Some(Answer::Admitted) {
+            decline(ctx, me, id.clone())?;
         }
         KNOCKS.remove(ctx, &(id, me));
         return Ok(());
@@ -175,7 +182,7 @@ pub(crate) fn admit(
     let mut call = open(ctx, &id)?;
     in_the_call(&call, me, "lets people into it")?;
     not_ended(&call, &id)?;
-    let mut knock = knocking(ctx, &id, account)?;
+    let mut knock = knocking(ctx, &id, account, now)?;
     ask_in(&mut call, vec![account], now)?;
     knock.answer = Some(Answer::Admitted);
     CALLS.put(ctx, &id, &call);
@@ -184,11 +191,17 @@ pub(crate) fn admit(
     Ok(())
 }
 
-pub(crate) fn turn_away(ctx: &ExecCtx, me: u64, id: String, account: u64) -> Result<(), Error> {
+pub(crate) fn turn_away(
+    ctx: &ExecCtx,
+    me: u64,
+    id: String,
+    account: u64,
+    now: u64,
+) -> Result<(), Error> {
     let call = open(ctx, &id)?;
     in_the_call(&call, me, "turns people away from it")?;
     not_ended(&call, &id)?;
-    let mut knock = knocking(ctx, &id, account)?;
+    let mut knock = knocking(ctx, &id, account, now)?;
     knock.answer = Some(Answer::TurnedAway);
     KNOCKS.put(ctx, &(id, account), &knock);
     Ok(())
@@ -246,14 +259,18 @@ pub(crate) fn knocks(ctx: &::program::QueryCtx, id: &str) -> Result<Vec<Knocker>
         .collect())
 }
 
-/// `account`'s unanswered knock at `id`'s door.
-fn knocking(ctx: &ExecCtx, id: &str, account: u64) -> Result<Knock, Error> {
+/// `account`'s knock at `id`'s door, waiting for an answer at `now`: one
+/// that ran out asks no more, so no one lets them in unasked.
+fn knocking(ctx: &ExecCtx, id: &str, account: u64, now: u64) -> Result<Knock, Error> {
     let knock = KNOCKS
         .get(ctx, &(id.to_owned(), account))?
         .ok_or_else(|| not_found(format!("account {account} is not knocking at call {id}")))?;
-    match knock.answer {
-        None => Ok(knock),
-        Some(_) => Err(wrong_state(format!(
+    match (Knocker { account, knock }).standing(now) {
+        Standing::Waiting => Ok(knock),
+        Standing::RanOut => Err(wrong_state(format!(
+            "account {account}'s knock at call {id} ran out"
+        ))),
+        Standing::Admitted | Standing::TurnedAway => Err(wrong_state(format!(
             "account {account}'s knock at call {id} was answered"
         ))),
     }

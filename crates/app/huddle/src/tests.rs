@@ -709,6 +709,47 @@ fn admit_lets_the_knocker_join_without_a_ring() {
     assert_eq!(line.row(CALL, Some(DEE)), Some(seat()));
 }
 
+/// A knock that ran out asks no more: no one lets its knocker in or turns
+/// them away until they knock again.
+#[test]
+fn a_knock_that_ran_out_is_not_answered() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    line.knock(CY).expect("a knock");
+    line.now = KNOCK_SECONDS;
+    let ran_out = line.state();
+    assert_eq!(
+        line.admit(ADA, CY).expect_err("ran out").code,
+        code::WRONG_STATE
+    );
+    assert_eq!(
+        line.turn_away(ADA, CY).expect_err("ran out").code,
+        code::WRONG_STATE
+    );
+    assert_eq!(line.state(), ran_out);
+    line.knock(CY).expect("knocked again");
+    line.admit(ADA, CY).expect("admitted");
+}
+
+/// One let in who withdraws before they join says no, as a Decline does:
+/// their row goes, and nothing rings them.
+#[test]
+fn a_knocker_let_in_who_withdraws_declines() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    line.knock(CY).expect("a knock");
+    line.admit(ADA, CY).expect("admitted");
+    line.ok(CY, Op::Leave { call: CALL.into() });
+    assert_eq!(line.ringing(CY), Vec::<String>::new(), "no ring");
+    assert_eq!(line.row(CALL, Some(CY)), None);
+    assert_eq!(line.mine(CY), Vec::<String>::new());
+    assert_eq!(line.call().declined, [CY]);
+    assert_eq!(line.knocks(), Vec::<Knocking>::new());
+    // asked in still: their link joins
+    line.ok(CY, Op::Join { call: CALL.into() });
+    assert_eq!(line.call().joined, [ADA, CY]);
+}
+
 /// Turned away, the knock stays answered until the knocker knocks again
 /// or withdraws; the call is unmoved.
 #[test]

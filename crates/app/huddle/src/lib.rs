@@ -36,7 +36,7 @@ pub const PROGRAM: &str = "huddle";
 /// How long a person is rung, in seconds, from when they were invited.
 pub const RING_SECONDS: u64 = 45;
 
-/// How long a knock waits for an answer, in seconds: as long as a ring.
+/// How long a knock waits for an answer, in seconds: a minute.
 pub const KNOCK_SECONDS: u64 = 60;
 
 /// How long a call with fewer than two in it waits for knocks, in seconds,
@@ -234,7 +234,7 @@ pub enum Op {
     Join { call: String },
     /// The sender is out of the call, their row taken back; the last one
     /// out ends it, and every row goes. A sender who was knocking, not in
-    /// it, withdraws their knock.
+    /// it, withdraws their knock; let in already, they decline.
     Leave { call: String },
     /// The sender, asked in, says no: their ring stops, their row goes.
     Decline { call: String },
@@ -244,10 +244,11 @@ pub enum Op {
     /// it: their knock waits [`KNOCK_SECONDS`] for someone in the call to
     /// answer. Knocked again, it waits anew.
     Knock { call: String },
-    /// Someone in the call lets `account`, who knocked, in: they are asked
-    /// in as an invite asks, their row written, but not rung (they asked).
+    /// Someone in the call lets `account`, whose knock waits, in: they are
+    /// asked in as an invite asks, their row written, but not rung (they
+    /// asked).
     Admit { call: String, account: u64 },
-    /// Someone in the call turns `account`'s knock away.
+    /// Someone in the call turns `account`'s waiting knock away.
     TurnAway { call: String, account: u64 },
 }
 
