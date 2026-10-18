@@ -160,6 +160,11 @@ pub(crate) fn asking_to_join(who: &str) -> String {
     format!("{who} is asking to join")
 }
 
+/// The notice to one let in at `caller`'s call's door.
+pub(crate) fn let_into(caller: &str) -> String {
+    format!("You were let into {caller}'s call")
+}
+
 /// A knock's answers.
 pub(crate) const LET_IN: &str = "Let in";
 pub(crate) const TURN_AWAY: &str = "Turn away";

@@ -150,6 +150,10 @@ impl Line {
         self.calls(Query::Mine { account })
     }
 
+    fn let_in(&self, account: u64) -> Vec<String> {
+        self.calls(Query::LetIn { account })
+    }
+
     /// `who`'s row in the room of `call`; `None` for `*`.
     fn row(&self, call: &str, who: Option<u64>) -> Option<Grant> {
         let ctx = self.store.exec(self.env());
@@ -488,6 +492,11 @@ fn an_old_shape_call_is_over_as_before() {
         },
     );
     assert!(!line.over());
+    line.now = RING_SECONDS * 3;
+    assert!(line.over(), "Cy's ring ran out too");
+    // its caller, still in it, keeps it by Join: it waits as a call of now
+    line.ok(ADA, Op::Join { call: CALL.into() });
+    assert!(!line.over());
 }
 
 /// The caller left alone in the room by a decline asks someone in again,
@@ -553,6 +562,74 @@ fn a_call_starts_alone_and_waits_for_knocks() {
         Vec::<Knocking>::new(),
         "the door's rows went"
     );
+}
+
+/// One alone in a call keeps it waiting for knocks by Join, sent again
+/// inside the wait; over with no write since (their view asleep), their
+/// Join keeps it again. Once it has ended, it does not.
+#[test]
+fn one_alone_in_a_call_keeps_it_waiting_by_join() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    let join = || Op::Join { call: CALL.into() };
+    line.now = WAIT_SECONDS / 2;
+    line.ok(ADA, join());
+    line.now = WAIT_SECONDS;
+    assert!(!line.over(), "the wait runs from the Join");
+    line.knock(BO).expect("the door is open");
+    line.now = WAIT_SECONDS * 3;
+    assert!(line.over(), "nothing said for ten minutes");
+    assert_eq!(
+        line.refused(CY, Op::Knock { call: CALL.into() }),
+        code::WRONG_STATE
+    );
+    assert_eq!(line.refused(BO, join()), code::UNAUTHORIZED, "never asked");
+    line.ok(ADA, join());
+    assert!(!line.over(), "still there: kept");
+    line.knock(CY).expect("the door is open again");
+    line.ok(ADA, Op::End { call: CALL.into() });
+    assert_eq!(line.refused(ADA, join()), code::WRONG_STATE);
+}
+
+/// Whoever a Leave leaves in the call waits for knocks from then, however
+/// long the call ran.
+#[test]
+fn the_one_a_leave_leaves_waits_for_knocks() {
+    let mut line = Line::default();
+    line.start(ADA, &[BO]);
+    line.ok(BO, Op::Join { call: CALL.into() });
+    line.now = WAIT_SECONDS * 3;
+    assert!(!line.over(), "two in it");
+    line.ok(BO, Op::Leave { call: CALL.into() });
+    line.now = WAIT_SECONDS * 4 - 1;
+    assert!(!line.over());
+    line.knock(CY).expect("the door is open");
+}
+
+/// A call that let a knocker in is theirs to open until they join,
+/// withdraw or decline, or the wait from it runs out; no one else's.
+#[test]
+fn let_in_lists_a_call_that_let_its_knocker_in() {
+    let mut line = Line::default();
+    line.start(ADA, &[]);
+    line.knock(CY).expect("a knock");
+    assert_eq!(line.let_in(CY), Vec::<String>::new(), "not let in yet");
+    line.admit(ADA, CY).expect("admitted");
+    assert_eq!(line.let_in(CY), [CALL]);
+    assert_eq!(line.let_in(ADA), Vec::<String>::new());
+    line.ok(CY, Op::Join { call: CALL.into() });
+    assert_eq!(line.let_in(CY), Vec::<String>::new(), "in");
+    line.knock(DEE).expect("a knock");
+    line.admit(ADA, DEE).expect("admitted");
+    line.ok(DEE, Op::Decline { call: CALL.into() });
+    assert_eq!(line.let_in(DEE), Vec::<String>::new(), "declined");
+    line.now = 10;
+    line.knock(BO).expect("a knock");
+    line.admit(CY, BO).expect("admitted");
+    line.now = 10 + WAIT_SECONDS - 1;
+    assert_eq!(line.let_in(BO), [CALL]);
+    line.now = 10 + WAIT_SECONDS;
+    assert_eq!(line.let_in(BO), Vec::<String>::new(), "the wait ran out");
 }
 
 /// A knock waits a minute for an answer, then runs out; knocked again, it

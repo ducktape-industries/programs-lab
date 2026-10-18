@@ -1205,6 +1205,67 @@ fn start_a_call_alone_and_answer_the_knocks_at_its_door() {
     );
 }
 
+/// Alone in a call, the view says you are still there every half wait,
+/// so its link keeps working past the first; with someone else in it, it
+/// says nothing.
+#[test]
+fn alone_in_a_call_you_keep_it_waiting_for_knocks() {
+    let mut line = line(false);
+    line.cx.simulate_click("huddle-join");
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-start");
+    line.cx.run_until_parked();
+    let joins = line.joins();
+    line.now.set(1_000 + huddle::WAIT_SECONDS / 2);
+    for _ in 0..huddle::WAIT_SECONDS / 2 {
+        line.second();
+    }
+    assert_eq!(line.joins(), joins + 1, "{:?}", line.sent.borrow());
+    // past the wait from the start: the door is open still
+    line.now.set(1_000 + huddle::WAIT_SECONDS);
+    line.block(
+        BO,
+        Op::Knock {
+            call: MINTED.into(),
+        },
+    );
+    let tracks = line.tracks();
+    line.arrives(&tracks, ADA);
+    for _ in 0..huddle::WAIT_SECONDS / 2 {
+        line.second();
+    }
+    assert_eq!(line.joins(), joins + 1, "not alone: nothing to keep");
+}
+
+/// At one call's door, a link to another withdraws the knock at the
+/// first.
+#[test]
+fn a_door_left_for_another_withdraws_its_knock() {
+    let mut line = line(false);
+    adas_alone(&mut line);
+    line.block(
+        BO,
+        Op::Start {
+            call: "call-bo".into(),
+            invited: vec![],
+        },
+    );
+    line.route.send(format!("call/{ADAS}"));
+    line.cx.run_until_parked();
+    line.cx.simulate_click("huddle-ask");
+    line.cx.run_until_parked();
+    line.route.send("call/call-bo".into());
+    line.cx.run_until_parked();
+    assert_eq!(
+        line.sent.borrow().as_slice(),
+        [
+            Op::Knock { call: ADAS.into() },
+            Op::Leave { call: ADAS.into() },
+        ]
+    );
+    assert!(line.cx.has_text("bo is in a call"), "{:?}", line.cx.texts());
+}
+
 /// Copy link puts the call's link on the clipboard and says so for a
 /// while.
 #[test]

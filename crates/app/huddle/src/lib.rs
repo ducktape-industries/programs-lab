@@ -40,7 +40,10 @@ pub const RING_SECONDS: u64 = 45;
 pub const KNOCK_SECONDS: u64 = 60;
 
 /// How long a call with fewer than two in it waits for knocks, in seconds,
-/// from its start and from its last knock: ten minutes.
+/// from its start, its last knock, its last Join and a Leave that leaves
+/// someone in it: ten minutes. A view in the call alone sends Join again
+/// well inside it, so the call waits while someone is there and is over
+/// this long after they are gone without a Leave.
 pub const WAIT_SECONDS: u64 = 600;
 
 /// The most people a call holds, its caller among them.
@@ -133,9 +136,8 @@ impl Call {
 
     /// Whether the call is over at `now`: ended, or fewer than two people
     /// in it with no one being rung, no one knocking and its wait for
-    /// knocks ([`WAIT_SECONDS`] from its start and from its last knock,
-    /// which `waits_until` ends; `None` for a call started before there
-    /// were knocks) out. No one answered, or everyone else left: the
+    /// knocks ([`WAIT_SECONDS`], which `waits_until` ends; `None` for a
+    /// call started before there were knocks) out. No one answered, or everyone else left: the
     /// program sees no track go down, so a call abandoned without a `Leave`
     /// is over by this rule, not by a write.
     pub fn over(&self, knocks: &[Knocker], waits_until: Option<u64>, now: u64) -> bool {
@@ -230,7 +232,9 @@ pub enum Op {
     Invite { call: String, accounts: Vec<u64> },
     /// The sender is in the call: its caller, or one asked in. Sent again,
     /// it writes the same row, so a view sends it on each `Waiting` its
-    /// tracks hear.
+    /// tracks hear, and while alone in the call to keep it waiting for
+    /// knocks ([`WAIT_SECONDS`]): from one in it already, it is refused
+    /// only once the call has ended.
     Join { call: String },
     /// The sender is out of the call, their row taken back; the last one
     /// out ends it, and every row goes. A sender who was knocking, not in
@@ -285,6 +289,13 @@ pub enum Query {
     #[ask(Reply::Doors(Vec<Door>))]
     #[reads(state::CALLS, state::MINE, state::KNOCKS)]
     Doors { account: u64 },
+    /// The calls that let `account` in at their door and that they have
+    /// not joined, declined, withdrawn from or seen go over since, inside
+    /// [`WAIT_SECONDS`] of being let in; newest first. Not in `Ringing`:
+    /// they asked, so nothing rings them.
+    #[ask(Reply::Calls(Vec<Listed>))]
+    #[reads(state::CALLS, state::MINE, state::KNOCKS, state::WAITS)]
+    LetIn { account: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
