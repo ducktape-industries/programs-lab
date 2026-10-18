@@ -20,7 +20,7 @@ pub const MINE: Set<(u64, u64, String)> = Set::new("mine/");
 pub const KNOCKS: Map<(String, u64), Knock> = Map::new("knock/");
 
 /// Until when each call waits for knocks, in the chain's seconds: written at
-/// its start and at each knock, [`WAIT_SECONDS`](crate::WAIT_SECONDS) on.
-/// A call started before there were knocks has no row, and is over as it
-/// was.
+/// its start, at each knock, at each Join and at a Leave that leaves someone
+/// in it, [`WAIT_SECONDS`](crate::WAIT_SECONDS) on. A call started before
+/// there were knocks has no row until one of those, and is over as it was.
 pub const WAITS: Map<String, u64> = Map::new("wait/");

@@ -1,11 +1,12 @@
 //! What each [`Op`](crate::Op) checks and writes: it reads first, then
 //! writes, so a refused op leaves the store as it found it. Join and Knock
 //! are refused once a call is over ([`Call::over`]); Invite, which rings
-//! again, and Leave, Decline and End, which take people out, are refused
+//! again, a Join from one in the call already, which says they are still
+//! there, and Leave, Decline and End, which take people out, are refused
 //! only once it has ended, so a call that went over with no write can still
-//! be rung again by the one left in it, or closed. Admit and TurnAway
-//! answer a knock that waits, so they are refused once it ran out, and
-//! once the call has ended.
+//! be rung again or kept by the one left in it, or closed. Admit and
+//! TurnAway answer a knock that waits, so they are refused once it ran
+//! out, and once the call has ended.
 use ::program::live::{grant, revoke};
 use ::program::{
     Error, ExecCtx, already_exists, capacity, invalid, not_found, unauthorized, wrong_state,
@@ -73,7 +74,13 @@ pub(crate) fn join(ctx: &ExecCtx, me: u64, id: String, now: u64) -> Result<(), E
     if !call.asked(me) {
         return Err(unauthorized(format!("you were not asked into call {id}")));
     }
-    if over(ctx, &id, &call, now)? {
+    // one in it already says they are still there: over with no write, the
+    // call is theirs to keep until it ends
+    let over = match call.joined.contains(&me) {
+        true => call.ended.is_some(),
+        false => over(ctx, &id, &call, now)?,
+    };
+    if over {
         return Err(wrong_state(format!("call {id} is over")));
     }
     if !call.joined.contains(&me) {
@@ -82,6 +89,8 @@ pub(crate) fn join(ctx: &ExecCtx, me: u64, id: String, now: u64) -> Result<(), E
     call.declined.retain(|account| *account != me);
     CALLS.put(ctx, &id, &call);
     sit(ctx, &id, &call, me);
+    // someone is in it: it waits for knocks from now
+    WAITS.put(ctx, &id, &(now + WAIT_SECONDS));
     // in: the knock that let them in has done its work
     KNOCKS.remove(ctx, &(id, me));
     Ok(())
@@ -109,6 +118,8 @@ pub(crate) fn leave(ctx: &ExecCtx, me: u64, id: String, now: u64) -> Result<(), 
     } else {
         CALLS.put(ctx, &id, &call);
         stand(ctx, &id, &call, me);
+        // the one left may be alone now: it waits for knocks from now
+        WAITS.put(ctx, &id, &(now + WAIT_SECONDS));
     }
     Ok(())
 }

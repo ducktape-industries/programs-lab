@@ -23,14 +23,17 @@
 //! In a call, the knocks waiting at its door are read with the call and
 //! asked again every five seconds while any waits (a knock runs out by the
 //! chain's clock, with no block to say so); Let in and Turn away answer
-//! them.
+//! them. Alone in a call, the view sends `Join` again every [`STAY`]
+//! seconds: the program keeps a call with fewer than two in it waiting for
+//! knocks [`huddle::WAIT_SECONDS`] from the last, so its link works while
+//! you are there and stops once you are gone without a Leave.
 //!
 //! The main tile is the last person whose voice said they speak, held two
 //! seconds after they stop so two people trading words do not flip it each
 //! word; before anyone speaks, the first other person. Never you with others
 //! there.
 //!
-//! The calls ringing the person are the program's `Mine`, asked again on
+//! The calls ringing the person are the program's `Ringing`, asked again on
 //! each block that writes one and, while one is shown, every five seconds:
 //! a ring runs out by the chain's clock, with no block to say so.
 use std::collections::{BTreeMap, BTreeSet};
@@ -52,6 +55,11 @@ const SLOW_START: u64 = 2;
 
 /// How often a shown ring is asked again, in the view's seconds.
 const RING_CHECK: u64 = 5;
+
+/// How often a call you are alone in hears you are still there, in the
+/// view's seconds: half its wait for knocks, so a slow block never lets
+/// the wait run out under you.
+const STAY: u64 = huddle::WAIT_SECONDS / 2;
 
 /// How long the room says why an op of the call did not go through, in the
 /// view's seconds: the call goes on, and the line is the network's again.
@@ -259,10 +267,10 @@ impl Huddle {
     }
 
     /// At call `id` by its link: in the call already, nothing; asked in,
-    /// answered; not asked, at its door, out of any other call and on the
-    /// check; over or no such call, said on the check. The call is read
-    /// first, so an end link right behind ([`Huddle::leave_call`]) finds
-    /// the arrival on its way and calls it off.
+    /// answered; not asked, at its door, out of any other call or door and
+    /// on the check; over or no such call, said on the check. The call is
+    /// read first, so an end link right behind ([`Huddle::leave_call`])
+    /// finds the arrival on its way and calls it off.
     fn arrive(&mut self, id: String, touch: bool, cx: &mut Context<Self>) {
         if self.call.as_ref().is_some_and(|call| call.id == id) {
             return;
@@ -291,6 +299,9 @@ impl Huddle {
                 Some(call) => {
                     if view.screen == Screen::Room {
                         view.leave(cx);
+                    }
+                    if view.door.as_ref().is_some_and(|door| door.id != id) {
+                        view.leave_door(cx);
                     }
                     view.ask_names(vec![call.caller], cx);
                     view.door = Some(AtTheDoor {
@@ -471,11 +482,21 @@ impl Huddle {
 
     /// One second of the view's clock in a call: the main tile handed on,
     /// a shown ring and a waiting knock asked again every [`RING_CHECK`],
-    /// your own knock unanswered a minute said so, Copy link's word back.
+    /// alone, a Join every [`STAY`], your own knock unanswered a minute
+    /// said so, Copy link's word back.
     pub(crate) fn call_tick(&mut self, cx: &mut Context<Self>) {
         let now = self.ticks;
         if let Some(call) = &mut self.call {
             call.hand_on(now);
+        }
+        let alone = self.call.as_ref().filter(|call| call.people.is_empty());
+        if let Some(call) = alone
+            && now.is_multiple_of(STAY)
+        {
+            let op = Op::Join {
+                call: call.id.clone(),
+            };
+            self.send(op, cx);
         }
         if self.screen == Screen::Room && now >= self.noted + NOTE_SECONDS {
             self.call_note = None;
@@ -697,6 +718,11 @@ impl Huddle {
             return;
         }
         self.hang_up(cx);
+        // at another call's door, your knock there is withdrawn; let in at
+        // this one's, it has done its work
+        if self.door.as_ref().is_some_and(|door| door.id != id) {
+            self.leave_door(cx);
+        }
         self.door = None;
         self.call_note = None;
         self.muted = false;

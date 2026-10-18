@@ -1,6 +1,6 @@
 //! What huddle hands the host's notification centre, decided here and
-//! nowhere else: a call ringing the reader, and a knock at the door of a
-//! call the reader is in.
+//! nowhere else: a call ringing the reader, a knock at the door of a call
+//! the reader is in, and a call that let the reader in at its door.
 //!
 //! A ring's title is the caller (`Ada is calling`), its body how many are
 //! asked in when more than two, its tag the call (`call/<id>`), its link
@@ -18,18 +18,29 @@
 //! (`knock/<call>/<account>`: a knock answered or run out is withdrawn
 //! alone, and never takes a ring's tag down), its link the call (the view
 //! in the room shows the knock with Let in and Turn away), its `until` the
-//! knock's run-out (a carrier drops one that arrives late). The knocker
-//! gets nothing: their open view says where they stand.
+//! knock's run-out (a carrier drops one that arrives late).
+//!
+//! Let in is a plain notice to the knocker, for when their view is not
+//! open to join at once (a phone's app put away): its title the call
+//! (`You were let into Ada's call`: the call is the caller's, and the
+//! program keeps no record of who let them in), its body empty, its tag
+//! the call's door (`in/<call>`), its link the call (the view joins it at
+//! once), its `until` [`huddle::WAIT_SECONDS`] from being let in. It is
+//! withdrawn when they join, withdraw or decline, the call is over, or its
+//! `until` passes.
+//! Turned away or run out, the knocker gets nothing: their open view says
+//! so.
 //!
 //! This is huddle's NOTIFIER: the host runs it once per network, whether or
 //! not a Huddle pane is open. It asks the program which calls ring the
-//! reader ([`huddle::Query::Ringing`]) and which knocks wait at the doors
-//! of the calls they are in ([`huddle::Query::Doors`]) when a block writes
-//! a call or a door, and every five seconds while it has a ring or a knock
-//! out, so one that runs out is withdrawn (`notify.seen`) as one that is
-//! answered, declined or ended is. The program answers at the chain's
-//! time, so a run catching up after a while away never rings a call that
-//! is over, nor says a knock that ran out.
+//! reader ([`huddle::Query::Ringing`]), which knocks wait at the doors of
+//! the calls they are in ([`huddle::Query::Doors`]) and which calls let
+//! them in ([`huddle::Query::LetIn`]) when a block writes a call or a
+//! door, and every five seconds while it has a notice out, so one that
+//! runs out is withdrawn (`notify.seen`) as one that is answered, declined
+//! or ended is. The program answers at the chain's time, so a run catching
+//! up after a while away never rings a call that is over, nor says a knock
+//! that ran out.
 //!
 //! What it posted it keeps under `rung/<signer>`: each tag with the `until`
 //! it was posted to. A call rung again (asked in again, a new `until`)
@@ -37,7 +48,7 @@
 //! that stands no more.
 use std::collections::BTreeMap;
 
-use huddle::{Door, KNOCK_SECONDS, Listed};
+use huddle::{Door, KNOCK_SECONDS, Listed, WAIT_SECONDS};
 use identity::Identity;
 use view::prelude::*;
 use view::{Notifier, store};
@@ -49,8 +60,9 @@ fn rung_key(signer: &str) -> String {
     format!("rung/{signer}")
 }
 
-/// How often a ring or a knock out is checked, in milliseconds: a carrier
-/// also stops a ring at its `until`, so this only takes the notice down.
+/// How often a ring, a knock or a let in out is checked, in milliseconds:
+/// a carrier also stops a ring at its `until`, so this only takes the
+/// notice down.
 const CHECK_MS: i64 = 5_000;
 
 /// Huddle's notifier: who reads, what it posted, and the check that runs
@@ -95,9 +107,11 @@ impl Notifier for HuddleNotices {
                 };
                 let ringing = huddle::ask::Ringing { account };
                 let doors = huddle::ask::Doors { account };
+                let let_in = huddle::ask::LetIn { account };
                 if change.is_none_or(|change| {
                     change.touches::<huddle::Huddle, _>(&ringing)
                         || change.touches::<huddle::Huddle, _>(&doors)
+                        || change.touches::<huddle::Huddle, _>(&let_in)
                 }) {
                     notices.ask(cx);
                 }
@@ -161,9 +175,10 @@ impl HuddleNotices {
         .detach();
     }
 
-    /// What stands for the reader now: the calls ringing them, each with
-    /// its caller's name, and the knocks at their doors, each with the
-    /// knocker's; once what was posted is read.
+    /// What stands for the reader now: the calls ringing them and the
+    /// calls that let them in, each with its caller's name, and the knocks
+    /// at their doors, each with the knocker's; once what was posted is
+    /// read.
     fn ask(&mut self, cx: &mut Context<Self>) {
         let (Some(account), Some(_)) = (self.session.account, &self.posted) else {
             return;
@@ -177,7 +192,7 @@ impl HuddleNotices {
             }
             match postings {
                 Ok(postings) => notices.settle(postings, cx),
-                Err(refusal) => log_refused(cx, "what rings and knocks", &refusal),
+                Err(refusal) => log_refused(cx, "what stands", &refusal),
             }
         })
         .detach();
@@ -225,7 +240,8 @@ impl HuddleNotices {
 
 /// The notices to be out for `account` on `chain`: a ring for each call
 /// ringing them, a notice for each knock at the doors of the calls they
-/// are in, each named by identity (the number where it names none).
+/// are in and for each call that let them in, each named by identity (the
+/// number where it names none).
 async fn postings(host: Host, account: u64, chain: String) -> Result<Postings, Error> {
     let mut postings = Vec::new();
     for listed in host.query(huddle::ask::Ringing { account }).await? {
@@ -249,6 +265,24 @@ async fn postings(host: Host, account: u64, chain: String) -> Result<Postings, E
                 knock(&call, knocker.account, &who, until, &chain),
             ));
         }
+    }
+    for listed in host.query(huddle::ask::LetIn { account }).await? {
+        // let in is asked in, from when they were let in
+        let invitee = listed.call.invited.iter();
+        let Some(at) = invitee
+            .filter(|invitee| invitee.account == account)
+            .map(|invitee| invitee.at)
+            .next()
+        else {
+            continue;
+        };
+        let until = at + WAIT_SECONDS;
+        let caller = name(&host, listed.call.caller).await;
+        postings.push((
+            let_in_tag(&listed.id),
+            until,
+            let_in(&listed.id, &caller, until, &chain),
+        ));
     }
     Ok(postings)
 }
@@ -284,6 +318,24 @@ pub(crate) fn notice(listed: &Listed, caller: &str, until: u64, chain: &str) -> 
         until,
         end_link: ducklink::mint(chain, huddle::PROGRAM, &["call", &listed.id, "leave"])
             .unwrap_or_default(),
+    }
+}
+
+/// The tag a call that let the reader in goes under.
+pub(crate) fn let_in_tag(id: &str) -> String {
+    format!("in/{id}")
+}
+
+/// Call `id`, `caller`'s, let the reader in, until `until`.
+pub(crate) fn let_in(id: &str, caller: &str, until: u64, chain: &str) -> Notification {
+    Notification {
+        title: words::let_into(caller),
+        body: String::new(),
+        tag: let_in_tag(id),
+        link: ducklink::mint(chain, huddle::PROGRAM, &["call", id]).unwrap_or_default(),
+        kind: NoticeKind::Notice,
+        until,
+        end_link: String::new(),
     }
 }
 

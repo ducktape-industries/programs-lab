@@ -5,7 +5,7 @@ use ::program::{Error, QueryCtx, corrupt};
 
 use crate::rules::knocks;
 use crate::state::{CALLS, KNOCKS, MINE, WAITS};
-use crate::{Answer, Call, Door, Knocker, Knocking, Listed};
+use crate::{Answer, Call, Door, Knocker, Knocking, Listed, WAIT_SECONDS};
 
 /// The most of an account's calls, newest first, a list reads.
 // ponytail: a call that went over with no write (no one answered, or
@@ -69,6 +69,29 @@ pub(crate) fn doors(ctx: &QueryCtx, account: u64, now: u64) -> Result<Vec<Door>,
         }
     }
     Ok(doors)
+}
+
+pub(crate) fn let_in(ctx: &QueryCtx, account: u64, now: u64) -> Result<Vec<Listed>, Error> {
+    listed(ctx, account, |id, call| {
+        // let in is asked in, from when they were let in
+        let Some(invitee) = call
+            .invited
+            .iter()
+            .find(|invitee| invitee.account == account)
+        else {
+            return Ok(false);
+        };
+        let out = call.joined.contains(&account) || call.declined.contains(&account);
+        if out || now >= invitee.at + WAIT_SECONDS {
+            return Ok(false);
+        }
+        let knock = KNOCKS.get(ctx, &(id.to_owned(), account))?;
+        if !knock.is_some_and(|knock| knock.answer == Some(Answer::Admitted)) {
+            return Ok(false);
+        }
+        let waits_until = WAITS.get(ctx, &id.to_owned())?;
+        Ok(!call.over(&knocks(ctx, id)?, waits_until, now))
+    })
 }
 
 /// `account`'s newest calls that `keep` keeps.

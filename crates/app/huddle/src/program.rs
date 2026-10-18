@@ -40,6 +40,7 @@ impl Program for Huddle {
             Query::Ringing { account } => Reply::Calls(queries::ringing(ctx, account, now)?),
             Query::Knocks { call } => Reply::Knocks(queries::knocks_at(ctx, &call, now)?),
             Query::Doors { account } => Reply::Doors(queries::doors(ctx, account, now)?),
+            Query::LetIn { account } => Reply::Calls(queries::let_in(ctx, account, now)?),
         })
     }
 }
